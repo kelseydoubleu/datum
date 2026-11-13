@@ -232,10 +232,10 @@ def shell(code):
     return json.dumps({"out": out, "err": err, "figs": figs})
 
 
-def _fresh_db():
+def _fresh_db(seed=None):
     import sqlite3
     db = sqlite3.connect(":memory:")
-    db.executescript(SEED_SQL)
+    db.executescript(seed or SEED_SQL)
     return db
 
 
@@ -256,14 +256,14 @@ def _norm_rows(rows):
     return [[v(x) for x in r] for r in rows]
 
 
-def run_sql(code, mode, sol, workspace=False):
+def run_sql(code, mode, sol, workspace=False, seed=None):
     global _WS_DB
     if workspace:
         if _WS_DB is None:
             _WS_DB = _fresh_db()
         db = _WS_DB
     else:
-        db = _fresh_db()
+        db = _fresh_db(seed)
     res = {"cols": [], "rows": [], "err": None, "ok": None, "msg": "", "count": 0}
     try:
         cols, rows = _q(db, code)
@@ -277,7 +277,7 @@ def run_sql(code, mode, sol, workspace=False):
             res["ok"] = False
             res["msg"] = "Your query generated an error. Check the message below the editor and try again."
         else:
-            scols, srows = _q(_fresh_db(), sol)
+            scols, srows = _q(_fresh_db(seed), sol)
             ucl = [c.lower() for c in cols]
             scl = [c.lower() for c in scols]
             if len(ucl) != len(scl):

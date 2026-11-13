@@ -1,0 +1,382 @@
+/* ===== Power BI modeling, DAX, and Fabric courses (practiced in SQL on the portfolio dataset) ===== */
+const PF = { pkgs:["sqlite3"], lang:"sql", seed:PORTFOLIO.sql, schema:PORTFOLIO.schema,
+  datasets:["Atelier portfolio: a fictional design firm with projects, offices, clients, staff and monthly fees (Jan 2025 to Oct 2026)"] };
+
+/* ---------- Data Modeling for Power BI ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"pbi-modeling", title:"Data Modeling for Power BI", tech:"Power BI", level:"Intermediate", hours:3,
+  desc:"Design semantic models that give the right numbers: star schemas, relationships, filter direction, date tables and data quality.",
+  long:"A Power BI report is only as good as the semantic model behind it. In this course you'll learn to think in facts and dimensions, read relationship cardinality and filter direction, and spot the modeling mistakes that quietly inflate totals or produce (Blank) rows. Power BI itself can't run in a browser, so you'll practice each concept by querying a design firm's star schema with SQL: every relationship in Power BI behaves like a join, and every slicer like a filter.",
+  prereq:["intro-sql"],
+  chapters:[
+  { title:"Star Schemas", desc:"Learn the shape that Power BI is built for: fact tables of events surrounded by dimension tables that describe them.",
+    lessons:[
+    {type:"video", title:"Facts and dimensions", slides:[
+      {h:"Two kinds of tables", b:["Fact tables record events or measurements: fees billed, hours worked","Dimension tables describe the things involved: projects, offices, clients, dates","Facts are long and narrow; dimensions are short and wide"]},
+      {h:"The star schema", b:["One fact table in the middle","Each dimension connects to it through a key","Power BI's engine, VertiPaq, is optimized for this shape"], code:"dim_office    dim_client\n       \\        /\n       fact_fees ---- dim_date\n           |\n      dim_project"},
+      {h:"Grain", b:["The grain is what one row of the fact table represents","Here: one project, one month","Decide the grain first; every measure depends on it"]},
+      {h:"Keys", b:["A dimension has one row per key (the one side)","A fact table repeats keys many times (the many side)","These keys are what relationships connect"]}
+    ]},
+    {type:"code", title:"Explore the fact table", xp:100,
+      context:"`fact_fees` stores the fees billed and hours worked on each project. Before building anything in Power BI, you need to know how big a fact table is and what it covers.\n\nThe tables are listed in the **Tables** tab below the editor.",
+      instr:["Return one row with three columns: the number of rows in `fact_fees` as `row_count`, the number of distinct `project_id` values as `projects`, and the number of distinct `month_date` values as `months`."],
+      hint:"`SELECT COUNT(*) AS row_count, COUNT(DISTINCT project_id) AS projects, COUNT(DISTINCT month_date) AS months FROM fact_fees;`",
+      starter:"-- Profile the fact table\n",
+      solution:"-- Profile the fact table\nSELECT COUNT(*) AS row_count,\n       COUNT(DISTINCT project_id) AS projects,\n       COUNT(DISTINCT month_date) AS months\nFROM fact_fees;\n"},
+    {type:"code", title:"Check the grain", xp:100,
+      context:"The grain of `fact_fees` should be one row per project per month. If any project appears twice in the same month, totals in Power BI will double count. A query that returns no rows is the result you're hoping for here.",
+      instr:["Group `fact_fees` by `project_id` and `month_date`.","Return the groups that have more than one row, with columns `project_id`, `month_date` and `n` (the row count)."],
+      hint:"Use `GROUP BY project_id, month_date` and `HAVING COUNT(*) > 1`.",
+      starter:"-- Find any project-months with more than one row\n",
+      solution:"-- Find any project-months with more than one row\nSELECT project_id, month_date, COUNT(*) AS n\nFROM fact_fees\nGROUP BY project_id, month_date\nHAVING COUNT(*) > 1;\n"},
+    {type:"code", title:"Relationships are joins", xp:100,
+      context:"When you put `dim_office[region]` on a visual next to a fees measure, Power BI follows the relationship from `dim_office` to `fact_fees`. In SQL, that's a join on the key both tables share.",
+      instr:["Join `fact_fees` to `dim_office` on `office_id`.","Return each `region` with the sum of `fee_usd` as `total_fees`.","Sort by `total_fees` from highest to lowest."],
+      hint:"`JOIN dim_office o ON f.office_id = o.office_id`, then `GROUP BY o.region`.",
+      starter:"-- Total fees by region\n",
+      solution:"-- Total fees by region\nSELECT o.region, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY total_fees DESC;\n"},
+    {type:"mcq", title:"Fact or dimension?",
+      context:"Classifying tables correctly is the first modeling decision you make.",
+      q:"A table has one row per staff member with their name, role and home office. What kind of table is it?",
+      options:["A fact table","A dimension table","A bridge table","A date table"], answer:1,
+      fb:["Facts record events or measurements, like hours worked.","Correct! It describes staff, so it's a dimension.","A bridge connects two dimensions in a many-to-many relationship.","It doesn't describe dates."]}
+  ]},
+  { title:"Relationships and Filter Direction", desc:"Understand cardinality, how filters flow through relationships, and why bidirectional filters and many-to-many relationships can inflate totals.",
+    lessons:[
+    {type:"video", title:"Cardinality and filter direction", slides:[
+      {h:"Cardinality", b:["One-to-many (1:*): one office, many fee rows. The default and the best choice","One-to-one (1:1): rare, often means two tables should be merged","Many-to-many (*:*): needs care, or a bridge table"]},
+      {h:"Filter direction", b:["Single: filters flow from the one side to the many side","Selecting New York in a slicer filters fact_fees to New York rows","The fact table doesn't filter the dimension back"]},
+      {h:"Both (bidirectional)", b:["Filters flow both ways across the relationship","Can make slicers show only values with data","But can create ambiguous paths, slow models and surprising totals","Use it rarely, and on purpose"]},
+      {h:"Active and inactive", b:["Only one active path between two tables","Extra relationships stay inactive","Measures can turn one on with USERELATIONSHIP()"]}
+    ]},
+    {type:"code", title:"Filters flow from dimensions", xp:100,
+      context:"A slicer on `dim_project[practice_area]` set to Hospitality filters `dim_project`, and that filter flows along the one-to-many relationship into `fact_fees`.",
+      instr:["Return the total `fee_usd` for projects whose `practice_area` is `Hospitality`, as a single column named `hospitality_fees`."],
+      hint:"Join `fact_fees` to `dim_project` on `project_id`, then filter with `WHERE p.practice_area = 'Hospitality'`.",
+      starter:"-- Fees for Hospitality projects\n",
+      solution:"-- Fees for Hospitality projects\nSELECT SUM(f.fee_usd) AS hospitality_fees\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nWHERE p.practice_area = 'Hospitality';\n"},
+    {type:"code", title:"Counting through a relationship", xp:100,
+      context:"A measure like `Active Projects = DISTINCTCOUNT(fact_fees[project_id])` counts projects that have fees in the current filter context. On a visual split by region, each region gets its own count.",
+      instr:["For each `region`, count the distinct `project_id` values in `fact_fees`, as `active_projects`.","Sort by `region` alphabetically."],
+      hint:"`COUNT(DISTINCT f.project_id)` with a join to `dim_office`.",
+      starter:"-- Distinct projects with fees, by region\n",
+      solution:"-- Distinct projects with fees, by region\nSELECT o.region, COUNT(DISTINCT f.project_id) AS active_projects\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY o.region;\n"},
+    {type:"video", title:"Many-to-many relationships", slides:[
+      {h:"Staff work on many projects", b:["One project has several staff, one staff member has several projects","project_staff is a bridge table between dim_staff and dim_project"]},
+      {h:"The inflation trap", b:["Join the fact table straight to the bridge and each fee row repeats once per staff member","Sum it and the total is too high","This is what a careless many-to-many or bidirectional setup can do"], code:"-- 1 fee row x 3 staff = counted 3 times\nSELECT SUM(f.fee_usd)\nFROM fact_fees f\nJOIN project_staff ps ON f.project_id = ps.project_id;"},
+      {h:"Filter, don't multiply", b:["Use the bridge to find which projects match","Then sum the fact table for those projects","In Power BI: dim_staff filters bridge, bridge filters dim_project, dim_project filters facts"]}
+    ]},
+    {type:"code", title:"When totals inflate", xp:100,
+      context:"Let's see the trap with real numbers. Joining `fact_fees` directly to the `project_staff` bridge repeats each fee row once per staff member on the project.",
+      instr:["Return one row with two columns.","`true_total`: the sum of `fee_usd` in `fact_fees` (use a subquery).","`inflated_total`: the sum of `fee_usd` after joining `fact_fees` to `project_staff` on `project_id`."],
+      hint:"`SELECT (SELECT SUM(fee_usd) FROM fact_fees) AS true_total, SUM(f.fee_usd) AS inflated_total FROM fact_fees f JOIN project_staff ps ON ...`",
+      starter:"-- Compare the true total with the inflated one\n",
+      solution:"-- Compare the true total with the inflated one\nSELECT (SELECT SUM(fee_usd) FROM fact_fees) AS true_total,\n       SUM(f.fee_usd) AS inflated_total\nFROM fact_fees f\nJOIN project_staff ps ON f.project_id = ps.project_id;\n"},
+    {type:"code", title:"Filter through a bridge", xp:100,
+      context:"The right pattern: use the bridge to decide *which* projects count, then sum the fact table once. This is what a well-configured many-to-many relationship does in Power BI.",
+      instr:["Return the total `fee_usd` for every project that `Maya Chen` works on, as `maya_project_fees`.","Use a subquery on `project_staff` joined to `dim_staff` to find her `project_id` values, and filter `fact_fees` with `IN`."],
+      hint:"`WHERE project_id IN (SELECT ps.project_id FROM project_staff ps JOIN dim_staff s ON ps.staff_id = s.staff_id WHERE s.staff_name = 'Maya Chen')`",
+      starter:"-- Fees for Maya Chen's projects, without double counting\n",
+      solution:"-- Fees for Maya Chen's projects, without double counting\nSELECT SUM(fee_usd) AS maya_project_fees\nFROM fact_fees\nWHERE project_id IN (\n  SELECT ps.project_id\n  FROM project_staff ps\n  JOIN dim_staff s ON ps.staff_id = s.staff_id\n  WHERE s.staff_name = 'Maya Chen'\n);\n"},
+    {type:"mcq", title:"Single or both?",
+      context:"Filter direction is one of the most common causes of confusing numbers.",
+      q:"You set a relationship between dim_office and fact_fees to filter in both directions. What's the main risk?",
+      options:["The model refuses to refresh","Ambiguous filter paths and unexpected totals, plus slower queries","Slicers stop working","Measures can no longer use SUM"], answer:1,
+      fb:["Refresh still works; the problems show up in the numbers.","Correct! Bidirectional filters can create ambiguous paths and surprising results, and they cost performance.","Slicers still work, often too well.","Aggregations still work."]}
+  ]},
+  { title:"Modeling Best Practices", desc:"Use a proper date table, flatten snowflakes into clean dimensions, and catch data quality problems before they reach a report.",
+    lessons:[
+    {type:"video", title:"Shaping a good model", slides:[
+      {h:"Use a date table", b:["One row per date (or per month for monthly facts), no gaps","Mark it as a date table in Power BI","Put Year, Quarter and Month here, not in the fact table"]},
+      {h:"Flatten snowflakes", b:["dim_project points to dim_client: that's a snowflake","Merge client attributes into the project dimension when you can","Fewer relationships, simpler filters, faster models"]},
+      {h:"Keep it tidy", b:["Hide key columns from report view","Write measures instead of summing columns directly","Use clear, Title Case names for everything people see"]},
+      {h:"Build once, reuse", b:["One shared semantic model can serve many reports","Local teams build their reports on it instead of copying data","Changes go through Dev, Test and Prod workspaces"]}
+    ]},
+    {type:"code", title:"Use the date table", xp:100,
+      context:"`dim_date` has one row per month with `year`, `quarter` and `month_name`. Relating it to `fact_fees[month_date]` lets every visual slice by time without storing those attributes in the fact table.",
+      instr:["Join `fact_fees` to `dim_date` on `f.month_date = d.date_key`.","Keep only `year` 2025.","Return each `quarter` with the sum of `fee_usd` as `total_fees`, sorted by `quarter`."],
+      hint:"`WHERE d.year = 2025 GROUP BY d.quarter ORDER BY d.quarter`.",
+      starter:"-- Fees by quarter for 2025\n",
+      solution:"-- Fees by quarter for 2025\nSELECT d.quarter, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_date d ON f.month_date = d.date_key\nWHERE d.year = 2025\nGROUP BY d.quarter\nORDER BY d.quarter;\n"},
+    {type:"code", title:"Flatten a snowflake", xp:100,
+      context:"In Power Query you'd merge `dim_client` into `dim_project` so report builders get one Project dimension with the client's name and sector built in.",
+      instr:["Join `dim_project` to `dim_client` on `client_id`.","Return `project_id`, `project_name`, `practice_area`, `client_name` and `sector`, sorted by `project_id`."],
+      hint:"`FROM dim_project p JOIN dim_client c ON p.client_id = c.client_id`.",
+      starter:"-- Build a flattened project dimension\n",
+      solution:"-- Build a flattened project dimension\nSELECT p.project_id, p.project_name, p.practice_area, c.client_name, c.sector\nFROM dim_project p\nJOIN dim_client c ON p.client_id = c.client_id\nORDER BY p.project_id;\n"},
+    {type:"code", title:"Find orphan keys", xp:100,
+      context:"If a fact row's key has no match in its dimension, Power BI groups it under **(Blank)**. Finding these orphan keys early saves a lot of confused stakeholders.",
+      instr:["Find every `project_id` in `fact_fees` that has no matching row in `dim_project`.","Return `project_id` and the number of fact rows as `row_count`."],
+      hint:"Use `LEFT JOIN dim_project p ON f.project_id = p.project_id` and keep rows `WHERE p.project_id IS NULL`.",
+      starter:"-- Fact rows with no matching project\n",
+      solution:"-- Fact rows with no matching project\nSELECT f.project_id, COUNT(*) AS row_count\nFROM fact_fees f\nLEFT JOIN dim_project p ON f.project_id = p.project_id\nWHERE p.project_id IS NULL\nGROUP BY f.project_id;\n"},
+    {type:"mcq", title:"The mysterious (Blank)",
+      context:"Every Power BI developer meets (Blank) eventually.",
+      q:"A slicer on Project Name shows a (Blank) item with fees attached. What is the most likely cause?",
+      options:["A measure returns zero","Fact rows have project keys that don't exist in the project dimension","The date table is missing","The relationship is set to both directions"], answer:1,
+      fb:["Zero values don't create a (Blank) member.","Correct! Orphan keys in the fact table are grouped under (Blank).","A missing date table causes other problems, not this one.","Filter direction doesn't create the (Blank) member."]}
+  ]}
+  ],
+  practice:[
+    {q:"What does the grain of a fact table describe?", options:["Its number of columns","What one row represents","Its refresh schedule","Its file size"], answer:1},
+    {q:"Which cardinality should most relationships in a star schema have?", options:["Many-to-many","One-to-one","One-to-many","Many-to-one bidirectional"], answer:2},
+    {q:"Where should Year and Month attributes live?", options:["In every fact table","In a date dimension","In a measure","In the report theme"], answer:1},
+    {q:"Which function activates an inactive relationship inside a measure?", options:["RELATED","USERELATIONSHIP","CROSSFILTER","TREATAS"], answer:1},
+    {q:"Joining a fact table directly to a bridge table and summing usually...", options:["Undercounts","Inflates totals","Has no effect","Fails with an error"], answer:1}
+  ]
+}));
+
+/* ---------- DAX Fundamentals ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"dax", title:"DAX Fundamentals", tech:"Power BI", level:"Intermediate", hours:3,
+  desc:"Write measures with confidence: filter context, CALCULATE, iterators, safe division, ranking and time intelligence.",
+  long:"DAX is the formula language of Power BI semantic models. The hard part isn't the syntax, it's understanding filter context: the set of filters that decides which rows a measure sees. In this course every lesson shows a real DAX pattern and has you reproduce its result in SQL against the same star schema. Seeing the equivalent query makes it clear what DAX is doing behind the scenes.",
+  prereq:["pbi-modeling"],
+  chapters:[
+  { title:"Measures and Columns", desc:"Learn the difference between calculated columns and measures, and write your first measure.",
+    lessons:[
+    {type:"video", title:"What is DAX?", slides:[
+      {h:"DAX", b:["Data Analysis Expressions","Used for measures, calculated columns and calculated tables","Looks like Excel formulas, but works on tables and columns"], code:"Total Fees = SUM ( fact_fees[fee_usd] )"},
+      {h:"Calculated columns", b:["Computed row by row when the model refreshes","Stored in the model, so they use memory","Good for attributes you slice or filter by"], code:"Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )"},
+      {h:"Measures", b:["Computed at query time, for each cell of a visual","Respond to slicers, filters and visual layout","Use them for anything you aggregate"], code:"Total Hours = SUM ( fact_fees[hours] )"},
+      {h:"Reading DAX in this course", b:["Each exercise shows a DAX measure","You'll write the SQL that returns the same numbers","Same data, same answer, two languages"]}
+    ]},
+    {type:"code", title:"Your first measure", xp:100,
+      context:"In Power BI, this measure on a card visual with no filters returns one number:\n\n`Total Fees = SUM ( fact_fees[fee_usd] )`",
+      instr:["Write the SQL that returns the same number, as a single column called `total_fees`."],
+      hint:"`SELECT SUM(fee_usd) AS total_fees FROM fact_fees;`",
+      starter:"-- Total Fees = SUM ( fact_fees[fee_usd] )\n",
+      solution:"-- Total Fees = SUM ( fact_fees[fee_usd] )\nSELECT SUM(fee_usd) AS total_fees\nFROM fact_fees;\n"},
+    {type:"code", title:"A calculated column", xp:100,
+      context:"A calculated column runs once per row of its table:\n\n`Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )`\n\nIn SQL, a row-level expression in SELECT does the same thing. Multiply by `1.0` so SQLite divides with decimals.",
+      instr:["Return `project_id`, `month_date` and `fee_usd * 1.0 / hours` rounded to 2 decimals as `fee_per_hour`.","Sort by `project_id`, then `month_date`, and keep the first 10 rows."],
+      hint:"`ROUND(fee_usd * 1.0 / hours, 2) AS fee_per_hour` ... `ORDER BY project_id, month_date LIMIT 10`.",
+      starter:"-- Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )\n",
+      solution:"-- Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )\nSELECT project_id, month_date, ROUND(fee_usd * 1.0 / hours, 2) AS fee_per_hour\nFROM fact_fees\nORDER BY project_id, month_date\nLIMIT 10;\n"},
+    {type:"mcq", title:"Column or measure?",
+      context:"Choosing between a column and a measure is one of the most common DAX decisions.",
+      q:"You need a percentage of total fees that updates when someone changes the region slicer. What should you create?",
+      options:["A calculated column","A measure","A calculated table","A new fact table"], answer:1,
+      fb:["Calculated columns are computed at refresh, so they don't react to slicers.","Correct! Measures are evaluated in the current filter context, so they respond to slicers.","A table won't react to slicers either.","This is a calculation, not new data."]}
+  ]},
+  { title:"Filter Context and CALCULATE", desc:"Understand how visuals create filter context, and use CALCULATE and ALL to change it.",
+    lessons:[
+    {type:"video", title:"Filter context", slides:[
+      {h:"Every cell has filters", b:["A matrix with Sector on rows gives each row a filter: Sector = Healthcare, and so on","Slicers and page filters add more","The measure is evaluated once per cell, under those filters"]},
+      {h:"In SQL terms", b:["Rows of a visual are like GROUP BY","Slicers and filters are like WHERE"], code:"SELECT c.sector, SUM(f.fee_usd)\nFROM fact_fees f JOIN dim_client c ON ...\nWHERE <slicers>\nGROUP BY c.sector"},
+      {h:"CALCULATE", b:["Evaluates an expression in a modified filter context","Simple filters replace existing filters on the same column","Other filters are kept"], code:"EMEA Fees =\nCALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )"},
+      {h:"ALL", b:["Removes filters from a table or column","Used for percent of total and ranking"], code:"% Of Fees =\nDIVIDE ( [Total Fees], CALCULATE ( [Total Fees], ALL ( dim_office ) ) )"}
+    ]},
+    {type:"code", title:"A measure in a visual", xp:100,
+      context:"Put `[Total Fees]` in a table visual with `dim_client[sector]` on rows. Each row gets a filter on its sector.",
+      instr:["Return each `sector` with `total_fees`, the sum of `fee_usd`.","Sort by `total_fees` from highest to lowest."],
+      hint:"Join `fact_fees` to `dim_client` on `client_id` and group by `sector`.",
+      starter:"-- [Total Fees] by dim_client[sector]\n",
+      solution:"-- [Total Fees] by dim_client[sector]\nSELECT c.sector, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_client c ON f.client_id = c.client_id\nGROUP BY c.sector\nORDER BY total_fees DESC;\n"},
+    {type:"code", title:"CALCULATE adds a filter", xp:100,
+      context:"On a visual with `dim_project[practice_area]` on rows, this measure keeps each row's practice area filter and adds a region filter:\n\n`EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )`\n\nPractice areas with no EMEA fees show **blank**, not zero. In SQL, a `CASE` without an `ELSE` gives `NULL`, which behaves like BLANK.",
+      instr:["Join `fact_fees` to `dim_project` and `dim_office`.","Return each `practice_area` with `emea_fees`: `SUM(CASE WHEN o.region = 'EMEA' THEN f.fee_usd END)`.","Sort by `practice_area`."],
+      hint:"Two joins: `JOIN dim_project p ON f.project_id = p.project_id JOIN dim_office o ON f.office_id = o.office_id`.",
+      starter:"-- EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )\n-- shown by dim_project[practice_area]\n",
+      solution:"-- EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )\n-- shown by dim_project[practice_area]\nSELECT p.practice_area,\n       SUM(CASE WHEN o.region = 'EMEA' THEN f.fee_usd END) AS emea_fees\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY p.practice_area\nORDER BY p.practice_area;\n"},
+    {type:"code", title:"ALL and percent of total", xp:100,
+      context:"`ALL ( dim_office )` removes the region filter for the denominator, so every row divides by the grand total:\n\n`% Of Fees = DIVIDE ( [Total Fees], CALCULATE ( [Total Fees], ALL ( dim_office ) ) )`",
+      instr:["Return each `region` with `pct_of_fees`: 100 times its fees divided by total fees across all rows, rounded to 1 decimal.","Use a subquery for the grand total. Sort by `region`."],
+      hint:"`ROUND(100.0 * SUM(f.fee_usd) / (SELECT SUM(fee_usd) FROM fact_fees), 1)`.",
+      starter:"-- % Of Fees by dim_office[region]\n",
+      solution:"-- % Of Fees by dim_office[region]\nSELECT o.region,\n       ROUND(100.0 * SUM(f.fee_usd) / (SELECT SUM(fee_usd) FROM fact_fees), 1) AS pct_of_fees\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY o.region;\n"},
+    {type:"mcq", title:"How CALCULATE treats filters",
+      context:"Knowing what CALCULATE keeps and what it replaces is the key to reading most measures.",
+      q:"A slicer is set to region = APAC. A card shows `CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )`. What does it show?",
+      options:["APAC fees","EMEA fees","Blank, because the filters conflict","All fees"], answer:1,
+      fb:["The slicer's region filter is replaced, not kept.","Correct! A simple filter in CALCULATE replaces existing filters on the same column.","CALCULATE overrides the column filter rather than combining it here.","Only filters on region are changed; the result is EMEA only."]}
+  ]},
+  { title:"Iterators, DIVIDE and Ranking", desc:"Use X functions that work row by row, divide safely, and rank items with RANKX.",
+    lessons:[
+    {type:"video", title:"Iterators", slides:[
+      {h:"X functions", b:["SUMX, AVERAGEX, MAXX, COUNTX","Iterate a table row by row, evaluate an expression, then aggregate","RELATED() reaches across a relationship to the one side"], code:"Standard Value =\nSUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )"},
+      {h:"DIVIDE", b:["DIVIDE ( numerator, denominator )","Returns BLANK instead of an error when dividing by zero","Optional third argument sets the alternate result"]},
+      {h:"RANKX", b:["Ranks items by an expression","Usually used with ALL() so every item is ranked against the others"], code:"Office Rank =\nRANKX ( ALL ( dim_office[office_name] ), [Total Fees] )"}
+    ]},
+    {type:"code", title:"SUMX", xp:100,
+      context:"Each office has a standard `bill_rate` (USD per hour) in `dim_office`. This measure multiplies hours by the related rate on every fact row, then sums:\n\n`Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )`",
+      instr:["Return one column, `standard_value`: the sum of `f.hours * o.bill_rate` across all fact rows."],
+      hint:"Join `dim_office` and use `SUM(f.hours * o.bill_rate)`.",
+      starter:"-- Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )\n",
+      solution:"-- Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )\nSELECT SUM(f.hours * o.bill_rate) AS standard_value\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id;\n"},
+    {type:"code", title:"Safe division", xp:100,
+      context:"Some projects don't have a gross square footage yet: it's either `NULL` or `0`. `DIVIDE` returns BLANK for those instead of an error:\n\n`Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )`\n\nIn SQL, `NULLIF(x, 0)` turns a zero into `NULL`, and dividing by `NULL` gives `NULL`.",
+      instr:["For each project, return `project_name` and `fee_per_sf`: its total `fee_usd` times `1.0` divided by `NULLIF(p.gross_sf, 0)`, rounded to 2 decimals.","Sort by `project_name`."],
+      hint:"Group by `p.project_id, p.project_name, p.gross_sf`.",
+      starter:"-- Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )\n",
+      solution:"-- Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )\nSELECT p.project_name,\n       ROUND(SUM(f.fee_usd) * 1.0 / NULLIF(p.gross_sf, 0), 2) AS fee_per_sf\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nGROUP BY p.project_id, p.project_name, p.gross_sf\nORDER BY p.project_name;\n"},
+    {type:"code", title:"Ranking with RANKX", xp:100,
+      context:"`RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )` ranks every office by fees, 1 being the highest. SQL's `RANK()` window function does the same.",
+      instr:["Return `office_name`, `total_fees` and `office_rank`, where `office_rank` is `RANK() OVER (ORDER BY SUM(f.fee_usd) DESC)`.","Sort by `office_rank`."],
+      hint:"Group by `o.office_name` and add the window function in SELECT.",
+      starter:"-- Office Rank = RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )\n",
+      solution:"-- Office Rank = RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )\nSELECT o.office_name,\n       SUM(f.fee_usd) AS total_fees,\n       RANK() OVER (ORDER BY SUM(f.fee_usd) DESC) AS office_rank\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.office_name\nORDER BY office_rank;\n"},
+    {type:"mcq", title:"DIVIDE by zero",
+      context:"DIVIDE exists so your visuals don't break on missing data.",
+      q:"What does `DIVIDE ( 10, 0 )` return?",
+      options:["An error","0","BLANK","Infinity"], answer:2,
+      fb:["The / operator would return Infinity here; DIVIDE handles the zero.","Not by default. Pass 0 as the third argument if you want it.","Correct! DIVIDE returns BLANK unless you supply an alternate result.","That's what the / operator returns, which is why DIVIDE is safer."]}
+  ]},
+  { title:"Time Intelligence", desc:"Use a date table to compute year-to-date totals and compare with the same period last year.",
+    lessons:[
+    {type:"video", title:"Time intelligence", slides:[
+      {h:"Needs a date table", b:["Time intelligence functions need a proper date table","Contiguous dates, no gaps, marked as the date table","Relate it to every fact table's date column"]},
+      {h:"Year to date", b:["Accumulates from the start of the year to the current date"], code:"Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )"},
+      {h:"Prior period", b:["SAMEPERIODLASTYEAR shifts the date filter back one year","DATEADD shifts by any number of days, months, quarters or years"], code:"Fees PY =\nCALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )"}
+    ]},
+    {type:"code", title:"Monthly trend", xp:100,
+      context:"A line chart with `dim_date[date_key]` on the axis and `[Total Fees]` as the value shows the monthly trend.",
+      instr:["Return each `month_date` with the sum of `fee_usd` as `total_fees`, sorted by `month_date`."],
+      hint:"`GROUP BY month_date ORDER BY month_date`.",
+      starter:"-- [Total Fees] by month\n",
+      solution:"-- [Total Fees] by month\nSELECT month_date, SUM(fee_usd) AS total_fees\nFROM fact_fees\nGROUP BY month_date\nORDER BY month_date;\n"},
+    {type:"code", title:"Year to date", xp:100,
+      context:"`Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )` restarts at January every year. In SQL, a running window sum partitioned by year does the same.",
+      instr:["Join `fact_fees` to `dim_date`.","Return `date_key` and `fees_ytd`: `SUM(SUM(f.fee_usd)) OVER (PARTITION BY d.year ORDER BY d.date_key)`.","Group by `d.date_key, d.year` and sort by `date_key`."],
+      hint:"The inner `SUM` aggregates each month; the outer `SUM ... OVER` accumulates within each year.",
+      starter:"-- Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )\n",
+      solution:"-- Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )\nSELECT d.date_key,\n       SUM(SUM(f.fee_usd)) OVER (PARTITION BY d.year ORDER BY d.date_key) AS fees_ytd\nFROM fact_fees f\nJOIN dim_date d ON f.month_date = d.date_key\nGROUP BY d.date_key, d.year\nORDER BY d.date_key;\n"},
+    {type:"code", title:"Compare with last year", xp:100,
+      context:"`Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )` returns last year's value for each month. In SQL, join the monthly totals to themselves, shifted by a year with `date(cur.month_date, '-1 year')`.",
+      instr:["The `monthly` CTE is written for you.","For months in 2026, return `month_date`, `total_fees`, and `fees_py`: the `total_fees` of the same month one year earlier.","Use a `LEFT JOIN` and sort by `month_date`."],
+      hint:"`FROM monthly cur LEFT JOIN monthly prev ON prev.month_date = date(cur.month_date, '-1 year') WHERE cur.month_date >= '2026-01-01'`.",
+      starter:"-- Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )\nWITH monthly AS (\n  SELECT month_date, SUM(fee_usd) AS total_fees\n  FROM fact_fees\n  GROUP BY month_date\n)\nSELECT *\nFROM monthly;\n",
+      solution:"-- Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )\nWITH monthly AS (\n  SELECT month_date, SUM(fee_usd) AS total_fees\n  FROM fact_fees\n  GROUP BY month_date\n)\nSELECT cur.month_date, cur.total_fees, prev.total_fees AS fees_py\nFROM monthly cur\nLEFT JOIN monthly prev ON prev.month_date = date(cur.month_date, '-1 year')\nWHERE cur.month_date >= '2026-01-01'\nORDER BY cur.month_date;\n"},
+    {type:"mcq", title:"Time intelligence requirements",
+      context:"Most time intelligence bugs come from the date table, not the measure.",
+      q:"TOTALYTD returns strange results. What should you check first?",
+      options:["That the visual uses a line chart","That there's a contiguous date table, marked as a date table and related to the facts","That the measure uses SUMX","That bidirectional filtering is on"], answer:1,
+      fb:["The visual type doesn't affect the calculation.","Correct! Time intelligence relies on a complete, marked date table.","TOTALYTD works with any base measure.","Bidirectional filtering is unrelated and often harmful."]}
+  ]}
+  ],
+  practice:[
+    {q:"When is a calculated column computed?", options:["Every time a visual renders","When the model refreshes","When a slicer changes","Never, it's virtual"], answer:1},
+    {q:"Which function removes filters from a table?", options:["FILTER","ALL","VALUES","RELATED"], answer:1},
+    {q:"Which function reaches the one side of a relationship from a row of the many side?", options:["RELATEDTABLE","LOOKUP","RELATED","USERELATIONSHIP"], answer:2},
+    {q:"Which function would you use for a running total from January?", options:["DATEADD","TOTALYTD","SAMEPERIODLASTYEAR","PARALLELPERIOD"], answer:1},
+    {q:"SUMX evaluates its expression...", options:["Once for the whole table","Once per row, then sums","Only on the one side","Only at refresh"], answer:1}
+  ]
+}));
+
+/* ---------- Microsoft Fabric ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"fabric", title:"Microsoft Fabric Lakehouse Essentials", tech:"Fabric", level:"Beginner", hours:2,
+  desc:"Understand how Fabric fits together, clean raw data through bronze, silver and gold layers, and ship safely from Dev to Prod.",
+  long:"Microsoft Fabric brings data engineering, warehousing and Power BI together on one storage layer, OneLake. In this course you'll learn the main pieces and when to use a Lakehouse versus a Warehouse. Then you'll take a messy raw timesheet export and clean it through the medallion layers with SQL, the same kind of work you'd do in a notebook or the SQL analytics endpoint. You'll finish with how teams govern and deploy Fabric content across Dev, Test and Prod.",
+  prereq:["intro-sql"],
+  schema: PORTFOLIO.bronzeSchema.concat(PORTFOLIO.schema),
+  chapters:[
+  { title:"Fabric Fundamentals", desc:"Learn the building blocks of Microsoft Fabric and how lakehouses, warehouses and semantic models connect.",
+    lessons:[
+    {type:"video", title:"What is Microsoft Fabric?", slides:[
+      {h:"One platform", b:["A software-as-a-service analytics platform from Microsoft","Workloads for data integration, data engineering, warehousing, data science, real-time analytics and Power BI","Everything lives in workspaces, backed by a capacity"]},
+      {h:"OneLake", b:["A single data lake for the whole organization","Tables are stored in the open Delta Parquet format","Shortcuts point to data elsewhere without copying it"]},
+      {h:"The usual flow", b:["Ingest: pipelines or dataflows bring data in","Transform: notebooks or SQL clean and shape it","Model: a semantic model defines relationships and measures","Report: Power BI reports read the semantic model"]}
+    ]},
+    {type:"video", title:"Lakehouse or Warehouse?", slides:[
+      {h:"Lakehouse", b:["Holds files and Delta tables","Engineered mostly with Spark notebooks (Python, Spark SQL)","Comes with a SQL analytics endpoint that is read-only"]},
+      {h:"Warehouse", b:["A full T-SQL data warehouse: create, insert, update, delete","Great for teams that work in SQL"]},
+      {h:"Direct Lake", b:["Semantic models can read Delta tables in OneLake directly","No scheduled import copy of the data","Fast like import, fresh like DirectQuery"]}
+    ]},
+    {type:"mcq", title:"The SQL analytics endpoint",
+      context:"Every lakehouse gets a SQL analytics endpoint automatically.",
+      q:"What can you do with a lakehouse's SQL analytics endpoint?",
+      options:["Insert and update rows with T-SQL","Query the lakehouse's Delta tables with T-SQL, read-only","Run Python notebooks","Edit Power BI reports"], answer:1,
+      fb:["Writes go through Spark or a Warehouse; the endpoint is read-only.","Correct! It's a read-only T-SQL interface over the lakehouse tables.","Notebooks are a separate item.","Reports are edited in Power BI."]},
+    {type:"mcq", title:"Where data lives",
+      context:"Fabric workloads share one storage layer.",
+      q:"In what format does Fabric store lakehouse and warehouse tables in OneLake?",
+      options:["CSV","Excel","Delta Parquet","JSON"], answer:2,
+      fb:["CSV files can be loaded, but tables are stored as Delta.","Not for tables.","Correct! Delta Parquet is the common table format across Fabric.","JSON can be ingested, but isn't the table format."]}
+  ]},
+  { title:"Medallion Architecture", desc:"Take raw timesheet data from bronze to silver to gold with SQL: profile it, deduplicate it, standardize it and aggregate it.",
+    lessons:[
+    {type:"video", title:"Bronze, silver, gold", slides:[
+      {h:"Bronze", b:["Raw data, exactly as it arrived","Duplicates, typos and mixed formats included","Never edited, so you can always reprocess"]},
+      {h:"Silver", b:["Cleaned and conformed","Types fixed, duplicates removed, names standardized","One trustworthy version of each record"]},
+      {h:"Gold", b:["Business-ready tables shaped for reporting","Aggregated or modeled as star schemas","What semantic models and reports read"]},
+      {h:"Our bronze table", b:["bronze_timesheets: a week of raw timesheet exports","Check the Tables tab, then let's clean it"]}
+    ]},
+    {type:"code", title:"Profile the bronze table", xp:100,
+      context:"Always profile raw data before cleaning it. A quick count of rows and distinct values tells you a lot. If the firm only has three offices in this export, how many spellings of office names are there?",
+      instr:["Return one row with `row_count`, the number of rows in `bronze_timesheets`, and `office_spellings`, the number of distinct `office` values."],
+      hint:"`COUNT(*)` and `COUNT(DISTINCT office)`.",
+      starter:"-- Profile bronze_timesheets\n",
+      solution:"-- Profile bronze_timesheets\nSELECT COUNT(*) AS row_count, COUNT(DISTINCT office) AS office_spellings\nFROM bronze_timesheets;\n"},
+    {type:"code", title:"Find duplicate rows", xp:100,
+      context:"Exports often send the same record twice. A row is a duplicate when every column matches another row.",
+      instr:["Group by all five columns and return groups with more than one row.","Return `staff_email`, `work_date` and `copies` (the row count), sorted by `staff_email` then `work_date`."],
+      hint:"`GROUP BY staff_email, project_code, office, work_date, hours HAVING COUNT(*) > 1`.",
+      starter:"-- Find exact duplicates\n",
+      solution:"-- Find exact duplicates\nSELECT staff_email, work_date, COUNT(*) AS copies\nFROM bronze_timesheets\nGROUP BY staff_email, project_code, office, work_date, hours\nHAVING COUNT(*) > 1\nORDER BY staff_email, work_date;\n"},
+    {type:"code", title:"Standardize office names", xp:100,
+      context:"The same office is spelled several ways: extra spaces, lowercase, and abbreviations like `NYC` and `LDN`. Map them to one clean name with `CASE`, after normalizing with `LOWER(TRIM(office))`.",
+      instr:["Return each distinct raw `office` value as `raw_office` and its clean name as `office_name`.","Map `new york` and `nyc` to `New York`, `london` and `ldn` to `London`, and `tokyo` to `Tokyo`.","Sort by `raw_office`."],
+      hint:"`CASE WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York' WHEN ... END AS office_name`.",
+      starter:"-- Map raw office spellings to clean names\n",
+      solution:"-- Map raw office spellings to clean names\nSELECT DISTINCT office AS raw_office,\n       CASE\n         WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n         WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n         WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n       END AS office_name\nFROM bronze_timesheets\nORDER BY raw_office;\n"},
+    {type:"code", title:"Fix types and bad values", xp:100,
+      context:"`hours` arrived as text. Some rows say `n/a` and some are empty. `CAST(hours AS REAL)` turns those into `0`, which makes them easy to filter out.",
+      instr:["Return `staff_email`, `work_date` and `CAST(hours AS REAL)` as `hours`.","Keep only rows where the cast value is greater than 0.","Sort by `staff_email`, then `work_date`, then `hours`."],
+      hint:"`WHERE CAST(hours AS REAL) > 0`.",
+      starter:"-- Convert hours to numbers and drop invalid rows\n",
+      solution:"-- Convert hours to numbers and drop invalid rows\nSELECT staff_email, work_date, CAST(hours AS REAL) AS hours\nFROM bronze_timesheets\nWHERE CAST(hours AS REAL) > 0\nORDER BY staff_email, work_date, hours;\n"},
+    {type:"code", title:"Build the silver table", xp:100,
+      context:"Now put it all together. In Fabric you'd save this result as a silver Delta table. Notice that some emails are uppercase: normalize them with `LOWER(TRIM(...))` too.",
+      instr:["Select `DISTINCT` rows with these columns: `LOWER(TRIM(staff_email))` as `staff_email`, `project_code`, the clean `office_name` from the previous exercise, `work_date`, and `CAST(hours AS REAL)` as `hours`.","Keep only rows with hours greater than 0.","Sort by `staff_email`, then `work_date`, then `project_code`."],
+      hint:"Combine your CASE expression and your WHERE clause from the last two exercises, and add DISTINCT.",
+      starter:"-- Build the silver timesheets\n",
+      solution:"-- Build the silver timesheets\nSELECT DISTINCT\n       LOWER(TRIM(staff_email)) AS staff_email,\n       project_code,\n       CASE\n         WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n         WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n         WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n       END AS office_name,\n       work_date,\n       CAST(hours AS REAL) AS hours\nFROM bronze_timesheets\nWHERE CAST(hours AS REAL) > 0\nORDER BY staff_email, work_date, project_code;\n"},
+    {type:"code", title:"Gold: hours by office", xp:100,
+      context:"Gold tables answer business questions directly. Your silver query is provided as a CTE called `silver`.",
+      instr:["From `silver`, return each `office_name` with `total_hours` (sum of hours) and `staff` (distinct count of `staff_email`).","Sort by `total_hours` from highest to lowest."],
+      hint:"`SELECT office_name, SUM(hours) AS total_hours, COUNT(DISTINCT staff_email) AS staff FROM silver GROUP BY office_name ORDER BY total_hours DESC`.",
+      starter:"WITH silver AS (\n  SELECT DISTINCT\n         LOWER(TRIM(staff_email)) AS staff_email,\n         project_code,\n         CASE\n           WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n           WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n           WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n         END AS office_name,\n         work_date,\n         CAST(hours AS REAL) AS hours\n  FROM bronze_timesheets\n  WHERE CAST(hours AS REAL) > 0\n)\n-- Aggregate silver into a gold table\nSELECT *\nFROM silver;\n",
+      solution:"WITH silver AS (\n  SELECT DISTINCT\n         LOWER(TRIM(staff_email)) AS staff_email,\n         project_code,\n         CASE\n           WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n           WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n           WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n         END AS office_name,\n         work_date,\n         CAST(hours AS REAL) AS hours\n  FROM bronze_timesheets\n  WHERE CAST(hours AS REAL) > 0\n)\n-- Aggregate silver into a gold table\nSELECT office_name, SUM(hours) AS total_hours, COUNT(DISTINCT staff_email) AS staff\nFROM silver\nGROUP BY office_name\nORDER BY total_hours DESC;\n"},
+    {type:"mcq", title:"Which layer for reports?",
+      context:"Each layer has a different audience.",
+      q:"Which layer should a Power BI semantic model usually read from?",
+      options:["Bronze","Silver","Gold","Whichever has the most rows"], answer:2,
+      fb:["Bronze is raw and untrustworthy for reporting.","Silver is clean, but not yet shaped for reporting.","Correct! Gold is shaped and ready for business use.","Row count isn't the criterion."]}
+  ]},
+  { title:"Deploying and Governing", desc:"Move content safely from Dev to Test to Prod, control access, and reuse shared semantic models.",
+    lessons:[
+    {type:"video", title:"Dev, Test and Prod", slides:[
+      {h:"Separate workspaces", b:["Develop in a Dev workspace","Validate in Test with realistic data and reviewers","Publish to Prod, where people use it"]},
+      {h:"Deployment pipelines", b:["Promote items from one stage to the next","Compare stages to see what changed","Deployment rules swap settings per stage, like the data source"]},
+      {h:"Git integration", b:["Connect a workspace to a Git repository","Version history, branches and reviews for Fabric items","Supports Azure DevOps and GitHub"]}
+    ]},
+    {type:"video", title:"Access and reuse", slides:[
+      {h:"Workspace roles", b:["Admin, Member, Contributor, Viewer","Viewers can see content but not edit it","Give people the least access they need"]},
+      {h:"Shared semantic models", b:["Build key measures once in a shared model","Other reports connect to it instead of copying the data","Endorse it as Promoted or Certified so people know it's trusted"]},
+      {h:"Protecting data", b:["Row-level security limits which rows a user sees","Sensitivity labels classify and protect content"]}
+    ]},
+    {type:"mcq", title:"Different data source in Prod",
+      context:"The same report often points at different databases in each stage.",
+      q:"Your Prod workspace must read from the production database, while Dev reads from a sample. What handles this in a deployment pipeline?",
+      options:["Row-level security","Deployment rules","Sensitivity labels","A second semantic model with copied measures"], answer:1,
+      fb:["RLS controls which rows users see, not the source.","Correct! Deployment rules change settings like data sources per stage.","Labels classify content.","Copying measures creates two versions of the truth."]},
+    {type:"mcq", title:"Workspace roles",
+      context:"Least privilege keeps production content safe.",
+      q:"Which workspace role lets someone view content without editing it?",
+      options:["Admin","Member","Contributor","Viewer"], answer:3,
+      fb:["Admins have full control.","Members can edit and share.","Contributors can create and edit content.","Correct! Viewers can view and interact, but not edit."]},
+    {type:"mcq", title:"Many teams, same KPIs",
+      context:"Consistency across reports is a governance problem as much as a technical one.",
+      q:"Five teams need the same Total Fees and Utilization measures. What's the best approach?",
+      options:["Each team builds its own model","Build one shared, endorsed semantic model and let teams build reports on it","Email a DAX file around","Put the numbers in Excel"], answer:1,
+      fb:["That leads to five slightly different definitions.","Correct! One shared model gives one definition of each measure.","Copies drift apart over time.","That loses the model and its security."]}
+  ]}
+  ],
+  practice:[
+    {q:"What is OneLake?", options:["A Power BI visual","A single data lake shared across Fabric","A Spark library","A deployment pipeline"], answer:1},
+    {q:"Which item gives full read and write T-SQL?", options:["Lakehouse SQL analytics endpoint","Warehouse","Semantic model","Dataflow"], answer:1},
+    {q:"Which layer keeps raw data untouched?", options:["Bronze","Silver","Gold","Platinum"], answer:0},
+    {q:"What does Direct Lake let a semantic model do?", options:["Write to OneLake","Read Delta tables directly without an import copy","Run notebooks","Skip relationships"], answer:1}
+  ]
+}));

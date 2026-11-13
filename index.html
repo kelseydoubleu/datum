@@ -6,7 +6,7 @@
 <style>:root{
   --ink:#0f172a; --ink2:#334155; --muted:#64748b; --line:#e5e7eb; --line2:#eef0f3; --soft:#f8fafc;
   --acc:#2457f5; --acc-soft:#eef3ff; --ok:#16a34a; --ok-soft:#ecfdf3; --bad:#dc2626; --bad-soft:#fef2f2;
-  --warn:#d97706; --py:#2457f5; --sql:#c2410c; --html:#0f766e; --r:10px;
+  --warn:#d97706; --py:#2457f5; --sql:#c2410c; --html:#0f766e; --pbi:#a16207; --fab:#0e7490; --r:10px;
   --mono:"JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 *{box-sizing:border-box}
@@ -48,6 +48,8 @@ h1,h2,h3{margin:0;letter-spacing:-.01em}
 .btn svg{width:16px;height:16px}
 .tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--ink2);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:2px 8px}
 .tag.py{color:var(--py);background:#eef3ff;border-color:#dbe4ff}
+.tag.pbi{color:var(--pbi);background:#fefce8;border-color:#fde68a}
+.tag.fab{color:var(--fab);background:#ecfeff;border-color:#a5f3fc}
 .tag.html{color:var(--html);background:#ecfdf5;border-color:#ccfbf1}
 .tag.sql{color:var(--sql);background:#fff4ed;border-color:#ffe0cc}
 .muted{color:var(--muted)}
@@ -77,8 +79,8 @@ h1,h2,h3{margin:0;letter-spacing:-.01em}
 .cc:hover{border-color:#cbd5e1;box-shadow:0 4px 18px rgba(15,23,42,.06)}
 .cc h3{font-size:16.5px;line-height:1.3}
 .cc p{margin:0;color:var(--muted);font-size:13.5px;flex:1}
-.cc .meta{display:flex;gap:14px;font-size:12.5px;color:var(--muted)}
-.cc .meta span{display:flex;gap:5px;align-items:center}
+.cc .meta{display:flex;flex-wrap:wrap;gap:6px 12px;font-size:12.5px;color:var(--muted)}
+.cc .meta span{display:flex;gap:5px;align-items:center;white-space:nowrap}
 .cc .meta svg{width:14px;height:14px}
 .filters{display:flex;gap:10px;flex-wrap:wrap;margin:22px 0 18px}
 .search{flex:1;min-width:220px;border:1px solid var(--line);border-radius:8px;padding:9px 12px;font:inherit}
@@ -266,7 +268,7 @@ iframe.preview{flex:1;width:100%;border:0;background:#fff;display:block}
 <nav class="mnav" id="mnav"></nav>
 <div class="toast" id="toast"></div>
 <script>
-const HARNESS = "import sys, io, json, traceback, warnings, base64, linecache\nwarnings.filterwarnings(\"ignore\")\n\nclass CheckFail(Exception):\n    pass\n\n_SHELL = {\"__name__\": \"__main__\"}\n_WS_DB = None\nSEED_SQL = \"\"\n\n\ndef _clean_tb(e):\n    tb = traceback.format_exception(type(e), e, e.__traceback__)\n    keep = []\n    for part in tb:\n        if part.startswith(\"Traceback\"):\n            keep.append(part)\n            continue\n        if part.lstrip().startswith(\"File \"):\n            if 'File \"script.py\"' in part or 'File \"<shell>\"' in part:\n                keep.append(part)\n            continue\n        keep.append(part)\n    if len(keep) == 2 and keep[0].startswith(\"Traceback\"):\n        keep = keep[1:]\n    return \"\".join(keep)\n\n\ndef _exec(code, ns, fname=\"script.py\"):\n    buf = io.StringIO()\n    old_out, old_err = sys.stdout, sys.stderr\n    sys.stdout = buf\n    sys.stderr = buf\n    err = None\n    linecache.cache[fname] = (len(code), None, [l + \"\\n\" for l in code.splitlines()], fname)\n    try:\n        exec(compile(code, fname, \"exec\"), ns)\n    except SyntaxError as e:\n        err = \"\".join(traceback.format_exception_only(type(e), e))\n    except Exception as e:\n        err = _clean_tb(e)\n    finally:\n        sys.stdout, sys.stderr = old_out, old_err\n    return buf.getvalue(), err\n\n\ndef _plt():\n    return sys.modules.get(\"matplotlib.pyplot\")\n\n\ndef _mpl_setup():\n    import matplotlib\n    matplotlib.use(\"Agg\")\n    import matplotlib.pyplot as plt\n    plt.show = lambda *a, **k: None\n    plt.rcParams[\"figure.figsize\"] = (6.4, 4.2)\n\n\ndef _fignums():\n    plt = _plt()\n    return list(plt.get_fignums()) if plt else []\n\n\ndef _render(nums):\n    plt = _plt()\n    out = []\n    if not plt:\n        return out\n    for n in nums:\n        f = plt.figure(n)\n        b = io.BytesIO()\n        f.savefig(b, format=\"png\", dpi=96, bbox_inches=\"tight\", facecolor=\"white\")\n        out.append(base64.b64encode(b.getvalue()).decode())\n    return out\n\n\ndef _close_all():\n    plt = _plt()\n    if plt:\n        plt.close(\"all\")\n\n\ndef _eq(a, b):\n    pd = sys.modules.get(\"pandas\")\n    np = sys.modules.get(\"numpy\")\n    if pd is not None:\n        if isinstance(a, pd.DataFrame) or isinstance(b, pd.DataFrame):\n            if not (isinstance(a, pd.DataFrame) and isinstance(b, pd.DataFrame)):\n                return False\n            try:\n                pd.testing.assert_frame_equal(a, b, check_dtype=False)\n                return True\n            except AssertionError:\n                return False\n        if isinstance(a, pd.Series) or isinstance(b, pd.Series):\n            if not (isinstance(a, pd.Series) and isinstance(b, pd.Series)):\n                return False\n            try:\n                pd.testing.assert_series_equal(a, b, check_dtype=False, check_names=False)\n                return True\n            except AssertionError:\n                return False\n        if isinstance(a, pd.Index):\n            return isinstance(b, pd.Index) and a.equals(b)\n    if np is not None and (isinstance(a, np.ndarray) or isinstance(b, np.ndarray)):\n        if not (isinstance(a, np.ndarray) and isinstance(b, np.ndarray)):\n            return False\n        try:\n            if a.shape != b.shape:\n                return False\n            if a.dtype.kind in \"fc\" or b.dtype.kind in \"fc\":\n                return bool(np.allclose(a, b, equal_nan=True))\n            return bool(np.array_equal(a, b))\n        except Exception:\n            return False\n    if isinstance(a, bool) or isinstance(b, bool):\n        return type(a) == type(b) and a == b\n    if isinstance(a, (int, float)) and isinstance(b, (int, float)):\n        return abs(a - b) < 1e-6 * max(1, abs(b))\n    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):\n        return type(a) == type(b) and len(a) == len(b) and all(_eq(x, y) for x, y in zip(a, b))\n    try:\n        r = a == b\n        return bool(r) and type(a) == type(b)\n    except Exception:\n        return False\n\n\ndef run_py(code, pre, mode, sol, check):\n    global _SHELL\n    _close_all()\n    ns = {\"__name__\": \"__main__\"}\n    _exec(pre, ns, \"<pre>\")\n    out, err = _exec(code, ns)\n    _SHELL = ns\n    user_nums = _fignums()\n    res = {\"out\": out, \"err\": err, \"figs\": [], \"ok\": None, \"msg\": \"\"}\n    if mode == \"submit\":\n        if err:\n            res[\"ok\"] = False\n            res[\"msg\"] = \"Your code generated an error. Read the message in the shell, fix it and submit again.\"\n        else:\n            S = {\"__name__\": \"__main__\"}\n            _exec(pre, S, \"<pre>\")\n            sol_out, sol_err = _exec(sol, S, \"<sol>\")\n            sol_nums = [n for n in _fignums() if n not in user_nums]\n            plt = _plt()\n            U = ns\n\n            def need(cond, msg):\n                if not cond:\n                    raise CheckFail(msg)\n\n            def has_var(name, msg=None):\n                need(name in U, msg or \"Did you define the variable `%s`? Check the spelling.\" % name)\n\n            def eq_var(name, msg=None):\n                has_var(name)\n                need(_eq(U[name], S[name]), msg or \"The value of `%s` isn't quite right. Have another look at the instructions.\" % name)\n\n            def printed(s, msg):\n                need(s in out, msg)\n\n            def out_has_sol(msg=None):\n                for line in sol_out.strip().splitlines():\n                    line = line.strip()\n                    if line:\n                        need(line in out, msg or \"Your printout doesn't match what we expected. Did you print everything the instructions ask for?\")\n\n            def ufigs():\n                return [plt.figure(n) for n in user_nums] if plt else []\n\n            def sfigs():\n                return [plt.figure(n) for n in sol_nums] if plt else []\n\n            def uax(i=0):\n                fs = ufigs()\n                need(len(fs) > 0, \"We couldn't find a figure. Did you create one with `plt.subplots()`?\")\n                axs = fs[-1].axes\n                need(len(axs) > i, \"We couldn't find the Axes we expected. Check the call to `plt.subplots()`.\")\n                return axs[i]\n\n            env = {\"need\": need, \"has_var\": has_var, \"eq_var\": eq_var, \"printed\": printed,\n                   \"out_has_sol\": out_has_sol, \"U\": U, \"S\": S, \"out\": out, \"sol_out\": sol_out,\n                   \"ufigs\": ufigs, \"sfigs\": sfigs, \"uax\": uax, \"_eq\": _eq, \"code\": code}\n            try:\n                exec(check, env)\n                res[\"ok\"] = True\n            except CheckFail as e:\n                res[\"ok\"] = False\n                res[\"msg\"] = str(e)\n            except Exception as e:\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Something isn't right yet. Compare your code with the instructions. (%s)\" % type(e).__name__\n            if plt:\n                for n in sol_nums:\n                    plt.close(n)\n    res[\"figs\"] = _render(user_nums)\n    return json.dumps(res)\n\n\ndef shell(code):\n    buf_code = code.strip()\n    if not buf_code:\n        return json.dumps({\"out\": \"\", \"err\": None, \"figs\": []})\n    before = _fignums()\n    try:\n        compiled = compile(buf_code, \"<shell>\", \"eval\")\n        is_expr = True\n        linecache.cache[\"<shell>\"] = (len(buf_code), None, [l + \"\\n\" for l in buf_code.splitlines()], \"<shell>\")\n    except SyntaxError:\n        is_expr = False\n    if is_expr:\n        bufo = io.StringIO()\n        old_out, old_err = sys.stdout, sys.stderr\n        sys.stdout = bufo\n        sys.stderr = bufo\n        err = None\n        try:\n            val = eval(compiled, _SHELL)\n            if val is not None:\n                print(repr(val))\n        except Exception as e:\n            err = _clean_tb(e)\n        finally:\n            sys.stdout, sys.stderr = old_out, old_err\n        out = bufo.getvalue()\n    else:\n        out, err = _exec(buf_code, _SHELL, \"<shell>\")\n    after = _fignums()\n    figs = _render(after) if after and (after != before or 'plt' in code or 'ax' in code or 'fig' in code) else []\n    return json.dumps({\"out\": out, \"err\": err, \"figs\": figs})\n\n\ndef _fresh_db():\n    import sqlite3\n    db = sqlite3.connect(\":memory:\")\n    db.executescript(SEED_SQL)\n    return db\n\n\ndef _q(db, sql):\n    cur = db.cursor()\n    cur.execute(sql)\n    cols = [d[0] for d in cur.description] if cur.description else []\n    rows = [list(r) for r in cur.fetchall()] if cur.description else []\n    db.commit()\n    return cols, rows\n\n\ndef _norm_rows(rows):\n    def v(x):\n        if isinstance(x, float):\n            return round(x, 6)\n        return x\n    return [[v(x) for x in r] for r in rows]\n\n\ndef run_sql(code, mode, sol, workspace=False):\n    global _WS_DB\n    if workspace:\n        if _WS_DB is None:\n            _WS_DB = _fresh_db()\n        db = _WS_DB\n    else:\n        db = _fresh_db()\n    res = {\"cols\": [], \"rows\": [], \"err\": None, \"ok\": None, \"msg\": \"\", \"count\": 0}\n    try:\n        cols, rows = _q(db, code)\n        res[\"cols\"] = cols\n        res[\"count\"] = len(rows)\n        res[\"rows\"] = rows[:500]\n    except Exception as e:\n        res[\"err\"] = \"%s: %s\" % (type(e).__name__, e)\n    if mode == \"submit\":\n        if res[\"err\"]:\n            res[\"ok\"] = False\n            res[\"msg\"] = \"Your query generated an error. Check the message below the editor and try again.\"\n        else:\n            scols, srows = _q(_fresh_db(), sol)\n            ucl = [c.lower() for c in cols]\n            scl = [c.lower() for c in scols]\n            if len(ucl) != len(scl):\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Your query returned %d column(s), but we expected %d: %s.\" % (len(ucl), len(scl), \", \".join(scols))\n            elif ucl != scl:\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Check your column names and their order. We expected: %s.\" % \", \".join(scols)\n            else:\n                u = _norm_rows(rows)\n                s = _norm_rows(srows)\n                if len(u) != len(s):\n                    res[\"ok\"] = False\n                    res[\"msg\"] = \"Your query returned %d row(s), but we expected %d. Check your filtering.\" % (len(u), len(s))\n                elif \"order by\" in sol.lower():\n                    res[\"ok\"] = u == s\n                    if not res[\"ok\"]:\n                        same = sorted(map(repr, u)) == sorted(map(repr, s))\n                        res[\"msg\"] = \"The rows are right, but the order isn't. Check your ORDER BY.\" if same else \"The values in your result don't match what we expected.\"\n                else:\n                    res[\"ok\"] = sorted(map(repr, u)) == sorted(map(repr, s))\n                    if not res[\"ok\"]:\n                        res[\"msg\"] = \"The values in your result don't match what we expected.\"\n    return json.dumps(res, default=str)\n";
+const HARNESS = "import sys, io, json, traceback, warnings, base64, linecache\nwarnings.filterwarnings(\"ignore\")\n\nclass CheckFail(Exception):\n    pass\n\n_SHELL = {\"__name__\": \"__main__\"}\n_WS_DB = None\nSEED_SQL = \"\"\n\n\ndef _clean_tb(e):\n    tb = traceback.format_exception(type(e), e, e.__traceback__)\n    keep = []\n    for part in tb:\n        if part.startswith(\"Traceback\"):\n            keep.append(part)\n            continue\n        if part.lstrip().startswith(\"File \"):\n            if 'File \"script.py\"' in part or 'File \"<shell>\"' in part:\n                keep.append(part)\n            continue\n        keep.append(part)\n    if len(keep) == 2 and keep[0].startswith(\"Traceback\"):\n        keep = keep[1:]\n    return \"\".join(keep)\n\n\ndef _exec(code, ns, fname=\"script.py\"):\n    buf = io.StringIO()\n    old_out, old_err = sys.stdout, sys.stderr\n    sys.stdout = buf\n    sys.stderr = buf\n    err = None\n    linecache.cache[fname] = (len(code), None, [l + \"\\n\" for l in code.splitlines()], fname)\n    try:\n        exec(compile(code, fname, \"exec\"), ns)\n    except SyntaxError as e:\n        err = \"\".join(traceback.format_exception_only(type(e), e))\n    except Exception as e:\n        err = _clean_tb(e)\n    finally:\n        sys.stdout, sys.stderr = old_out, old_err\n    return buf.getvalue(), err\n\n\ndef _plt():\n    return sys.modules.get(\"matplotlib.pyplot\")\n\n\ndef _mpl_setup():\n    import matplotlib\n    matplotlib.use(\"Agg\")\n    import matplotlib.pyplot as plt\n    plt.show = lambda *a, **k: None\n    plt.rcParams[\"figure.figsize\"] = (6.4, 4.2)\n\n\ndef _fignums():\n    plt = _plt()\n    return list(plt.get_fignums()) if plt else []\n\n\ndef _render(nums):\n    plt = _plt()\n    out = []\n    if not plt:\n        return out\n    for n in nums:\n        f = plt.figure(n)\n        b = io.BytesIO()\n        f.savefig(b, format=\"png\", dpi=96, bbox_inches=\"tight\", facecolor=\"white\")\n        out.append(base64.b64encode(b.getvalue()).decode())\n    return out\n\n\ndef _close_all():\n    plt = _plt()\n    if plt:\n        plt.close(\"all\")\n\n\ndef _eq(a, b):\n    pd = sys.modules.get(\"pandas\")\n    np = sys.modules.get(\"numpy\")\n    if pd is not None:\n        if isinstance(a, pd.DataFrame) or isinstance(b, pd.DataFrame):\n            if not (isinstance(a, pd.DataFrame) and isinstance(b, pd.DataFrame)):\n                return False\n            try:\n                pd.testing.assert_frame_equal(a, b, check_dtype=False)\n                return True\n            except AssertionError:\n                return False\n        if isinstance(a, pd.Series) or isinstance(b, pd.Series):\n            if not (isinstance(a, pd.Series) and isinstance(b, pd.Series)):\n                return False\n            try:\n                pd.testing.assert_series_equal(a, b, check_dtype=False, check_names=False)\n                return True\n            except AssertionError:\n                return False\n        if isinstance(a, pd.Index):\n            return isinstance(b, pd.Index) and a.equals(b)\n    if np is not None and (isinstance(a, np.ndarray) or isinstance(b, np.ndarray)):\n        if not (isinstance(a, np.ndarray) and isinstance(b, np.ndarray)):\n            return False\n        try:\n            if a.shape != b.shape:\n                return False\n            if a.dtype.kind in \"fc\" or b.dtype.kind in \"fc\":\n                return bool(np.allclose(a, b, equal_nan=True))\n            return bool(np.array_equal(a, b))\n        except Exception:\n            return False\n    if isinstance(a, bool) or isinstance(b, bool):\n        return type(a) == type(b) and a == b\n    if isinstance(a, (int, float)) and isinstance(b, (int, float)):\n        return abs(a - b) < 1e-6 * max(1, abs(b))\n    if isinstance(a, (list, tuple)) and isinstance(b, (list, tuple)):\n        return type(a) == type(b) and len(a) == len(b) and all(_eq(x, y) for x, y in zip(a, b))\n    try:\n        r = a == b\n        return bool(r) and type(a) == type(b)\n    except Exception:\n        return False\n\n\ndef run_py(code, pre, mode, sol, check):\n    global _SHELL\n    _close_all()\n    ns = {\"__name__\": \"__main__\"}\n    _exec(pre, ns, \"<pre>\")\n    out, err = _exec(code, ns)\n    _SHELL = ns\n    user_nums = _fignums()\n    res = {\"out\": out, \"err\": err, \"figs\": [], \"ok\": None, \"msg\": \"\"}\n    if mode == \"submit\":\n        if err:\n            res[\"ok\"] = False\n            res[\"msg\"] = \"Your code generated an error. Read the message in the shell, fix it and submit again.\"\n        else:\n            S = {\"__name__\": \"__main__\"}\n            _exec(pre, S, \"<pre>\")\n            sol_out, sol_err = _exec(sol, S, \"<sol>\")\n            sol_nums = [n for n in _fignums() if n not in user_nums]\n            plt = _plt()\n            U = ns\n\n            def need(cond, msg):\n                if not cond:\n                    raise CheckFail(msg)\n\n            def has_var(name, msg=None):\n                need(name in U, msg or \"Did you define the variable `%s`? Check the spelling.\" % name)\n\n            def eq_var(name, msg=None):\n                has_var(name)\n                need(_eq(U[name], S[name]), msg or \"The value of `%s` isn't quite right. Have another look at the instructions.\" % name)\n\n            def printed(s, msg):\n                need(s in out, msg)\n\n            def out_has_sol(msg=None):\n                for line in sol_out.strip().splitlines():\n                    line = line.strip()\n                    if line:\n                        need(line in out, msg or \"Your printout doesn't match what we expected. Did you print everything the instructions ask for?\")\n\n            def ufigs():\n                return [plt.figure(n) for n in user_nums] if plt else []\n\n            def sfigs():\n                return [plt.figure(n) for n in sol_nums] if plt else []\n\n            def uax(i=0):\n                fs = ufigs()\n                need(len(fs) > 0, \"We couldn't find a figure. Did you create one with `plt.subplots()`?\")\n                axs = fs[-1].axes\n                need(len(axs) > i, \"We couldn't find the Axes we expected. Check the call to `plt.subplots()`.\")\n                return axs[i]\n\n            env = {\"need\": need, \"has_var\": has_var, \"eq_var\": eq_var, \"printed\": printed,\n                   \"out_has_sol\": out_has_sol, \"U\": U, \"S\": S, \"out\": out, \"sol_out\": sol_out,\n                   \"ufigs\": ufigs, \"sfigs\": sfigs, \"uax\": uax, \"_eq\": _eq, \"code\": code}\n            try:\n                exec(check, env)\n                res[\"ok\"] = True\n            except CheckFail as e:\n                res[\"ok\"] = False\n                res[\"msg\"] = str(e)\n            except Exception as e:\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Something isn't right yet. Compare your code with the instructions. (%s)\" % type(e).__name__\n            if plt:\n                for n in sol_nums:\n                    plt.close(n)\n    res[\"figs\"] = _render(user_nums)\n    return json.dumps(res)\n\n\ndef shell(code):\n    buf_code = code.strip()\n    if not buf_code:\n        return json.dumps({\"out\": \"\", \"err\": None, \"figs\": []})\n    before = _fignums()\n    try:\n        compiled = compile(buf_code, \"<shell>\", \"eval\")\n        is_expr = True\n        linecache.cache[\"<shell>\"] = (len(buf_code), None, [l + \"\\n\" for l in buf_code.splitlines()], \"<shell>\")\n    except SyntaxError:\n        is_expr = False\n    if is_expr:\n        bufo = io.StringIO()\n        old_out, old_err = sys.stdout, sys.stderr\n        sys.stdout = bufo\n        sys.stderr = bufo\n        err = None\n        try:\n            val = eval(compiled, _SHELL)\n            if val is not None:\n                print(repr(val))\n        except Exception as e:\n            err = _clean_tb(e)\n        finally:\n            sys.stdout, sys.stderr = old_out, old_err\n        out = bufo.getvalue()\n    else:\n        out, err = _exec(buf_code, _SHELL, \"<shell>\")\n    after = _fignums()\n    figs = _render(after) if after and (after != before or 'plt' in code or 'ax' in code or 'fig' in code) else []\n    return json.dumps({\"out\": out, \"err\": err, \"figs\": figs})\n\n\ndef _fresh_db(seed=None):\n    import sqlite3\n    db = sqlite3.connect(\":memory:\")\n    db.executescript(seed or SEED_SQL)\n    return db\n\n\ndef _q(db, sql):\n    cur = db.cursor()\n    cur.execute(sql)\n    cols = [d[0] for d in cur.description] if cur.description else []\n    rows = [list(r) for r in cur.fetchall()] if cur.description else []\n    db.commit()\n    return cols, rows\n\n\ndef _norm_rows(rows):\n    def v(x):\n        if isinstance(x, float):\n            return round(x, 6)\n        return x\n    return [[v(x) for x in r] for r in rows]\n\n\ndef run_sql(code, mode, sol, workspace=False, seed=None):\n    global _WS_DB\n    if workspace:\n        if _WS_DB is None:\n            _WS_DB = _fresh_db()\n        db = _WS_DB\n    else:\n        db = _fresh_db(seed)\n    res = {\"cols\": [], \"rows\": [], \"err\": None, \"ok\": None, \"msg\": \"\", \"count\": 0}\n    try:\n        cols, rows = _q(db, code)\n        res[\"cols\"] = cols\n        res[\"count\"] = len(rows)\n        res[\"rows\"] = rows[:500]\n    except Exception as e:\n        res[\"err\"] = \"%s: %s\" % (type(e).__name__, e)\n    if mode == \"submit\":\n        if res[\"err\"]:\n            res[\"ok\"] = False\n            res[\"msg\"] = \"Your query generated an error. Check the message below the editor and try again.\"\n        else:\n            scols, srows = _q(_fresh_db(seed), sol)\n            ucl = [c.lower() for c in cols]\n            scl = [c.lower() for c in scols]\n            if len(ucl) != len(scl):\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Your query returned %d column(s), but we expected %d: %s.\" % (len(ucl), len(scl), \", \".join(scols))\n            elif ucl != scl:\n                res[\"ok\"] = False\n                res[\"msg\"] = \"Check your column names and their order. We expected: %s.\" % \", \".join(scols)\n            else:\n                u = _norm_rows(rows)\n                s = _norm_rows(srows)\n                if len(u) != len(s):\n                    res[\"ok\"] = False\n                    res[\"msg\"] = \"Your query returned %d row(s), but we expected %d. Check your filtering.\" % (len(u), len(s))\n                elif \"order by\" in sol.lower():\n                    res[\"ok\"] = u == s\n                    if not res[\"ok\"]:\n                        same = sorted(map(repr, u)) == sorted(map(repr, s))\n                        res[\"msg\"] = \"The rows are right, but the order isn't. Check your ORDER BY.\" if same else \"The values in your result don't match what we expected.\"\n                else:\n                    res[\"ok\"] = sorted(map(repr, u)) == sorted(map(repr, s))\n                    if not res[\"ok\"]:\n                        res[\"msg\"] = \"The values in your result don't match what we expected.\"\n    return json.dumps(res, default=str)\n";
 /* ===== Course content ===== */
 const FILMS = [
   // title, release_year, country, duration, language, certification, gross, budget
@@ -1102,6 +1104,113 @@ const TRACKS = [
 
 if (typeof module !== "undefined") module.exports = {COURSES, TRACKS, SEED_SQL};
 
+/* ===== Portfolio dataset: a fictional design firm, used by the Power BI, DAX and Fabric courses ===== */
+const PORTFOLIO = (() => {
+  let s = 20261113;
+  const rnd = () => { s |= 0; s = s + 0x6D2B79F5 | 0; let t = Math.imul(s ^ s >>> 15, 1 | s); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const offices = [
+    [1,"New York","Americas","USA",215],[2,"San Francisco","Americas","USA",225],[3,"Chicago","Americas","USA",195],
+    [4,"London","EMEA","UK",190],[5,"Berlin","EMEA","Germany",175],[6,"Tokyo","APAC","Japan",185],
+    [7,"Singapore","APAC","Singapore",170],[8,"Sydney","APAC","Australia",180]
+  ];
+  const clients = [
+    [1,"Harbor Financial","Financial Services"],[2,"Lumen Health","Healthcare"],[3,"Northline Tech","Technology"],
+    [4,"Civic Arts Trust","Culture"],[5,"Meridian Hotels","Hospitality"],[6,"Redwood University","Education"],
+    [7,"Atlas Retail","Retail"],[8,"Kestrel Bank","Financial Services"]
+  ];
+  // id, name, client, office, practice, status, start (months from 2025-01), duration, gross_sf, monthly fee base
+  const projects = [
+    [1,"Harbor HQ Fit-Out",1,1,"Workplace","Active",0,22,185000,62000],
+    [2,"Lumen Clinic Network",2,3,"Health & Wellness","Active",2,18,64000,38000],
+    [3,"Northline Campus",3,2,"Workplace","Active",0,22,410000,91000],
+    [4,"Civic Arts Museum Wing",4,4,"Culture & Museums","Active",4,20,52000,47000],
+    [5,"Meridian Shibuya",5,6,"Hospitality","Active",1,21,230000,73000],
+    [6,"Redwood Library",6,3,"Education","Complete",0,12,88000,29000],
+    [7,"Atlas Flagship",7,1,"Mixed Use","Active",6,16,120000,41000],
+    [8,"Kestrel Tower Floors",8,4,"Workplace","Active",3,19,140000,52000],
+    [9,"Harbor Singapore",1,7,"Workplace","Active",8,14,76000,33000],
+    [10,"Meridian Sydney Harbour",5,8,"Hospitality","Active",5,17,195000,58000],
+    [11,"Lumen Research Labs",2,2,"Health & Wellness","Complete",0,10,99000,44000],
+    [12,"Redwood Student Center",6,5,"Education","Active",7,15,71000,27000],
+    [13,"Northline Berlin Studio",3,5,"Workplace","Active",9,13,null,24000],
+    [14,"Civic Arts Pavilion",4,1,"Culture & Museums","Concept",18,4,0,15000],
+    [15,"Atlas Pop-Up Program",7,6,"Mixed Use","Complete",2,8,18000,12000],
+    [16,"Meridian London Rooftop",5,4,"Hospitality","Active",12,10,34000,26000]
+  ];
+  const staff = [
+    [1,"Maya Chen","Design Director",1],[2,"Omar Haddad","Project Architect",1],[3,"Priya Nair","Interior Designer",2],
+    [4,"Luca Romano","Design Technologist",4],[5,"Sofia Alvarez","Project Manager",3],[6,"Kenji Mori","Project Architect",6],
+    [7,"Ava Thompson","Interior Designer",8],[8,"Noah Fischer","Design Director",5],[9,"Lin Wei","Project Manager",7],
+    [10,"Hannah Okafor","Design Technologist",1],[11,"Tom Becker","Project Architect",4],[12,"Grace Kim","Interior Designer",2]
+  ];
+  const team = {1:[1,2,10],2:[5,12],3:[3,12,10],4:[11,4],5:[6,1],6:[5],7:[2,10],8:[11,4,1],9:[9],10:[7,6],11:[3],12:[8,4],13:[8],14:[1,2],15:[6],16:[11]};
+  const months = [];
+  for (let i = 0; i < 24; i++) { const y = 2025 + Math.floor(i / 12), m = i % 12 + 1; months.push(`${y}-${String(m).padStart(2, "0")}-01`); }
+  const MN = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const lastActual = 21; // data through 2026-10
+  const fees = [];
+  projects.forEach(p => {
+    const [id, , client, office, , , start, dur, , base] = p;
+    for (let i = start; i < Math.min(start + dur, lastActual + 1); i++) {
+      const ramp = i - start < 2 ? 0.6 : 1;
+      const fee = Math.round(base * ramp * (0.8 + 0.4 * rnd()) / 10) * 10;
+      const rate = offices[office - 1][4];
+      const hours = Math.round(fee / (rate * (0.9 + 0.2 * rnd())));
+      fees.push([id, office, client, months[i], fee, hours]);
+    }
+  });
+  // two rows with a project key that's missing from dim_project (a data quality issue)
+  fees.push([99, 1, 1, "2026-09-01", 8400, 40], [99, 1, 1, "2026-10-01", 9100, 43]);
+
+  // Bronze timesheets: raw, messy exports
+  const officeSp = { 1: ["New York", " new york", "NYC"], 4: ["London", "london ", "LDN"], 6: ["Tokyo", "tokyo"] };
+  const emails = { 1: "maya.chen", 2: "omar.haddad", 10: "hannah.okafor", 4: "luca.romano", 11: "tom.becker", 6: "kenji.mori" };
+  const codes = { 1: "P-0001", 7: "P-0007", 4: "P-0004", 8: "P-0008", 16: "P-0016", 5: "P-0005" };
+  const plan = [[1, 1, 1], [2, 1, 7], [10, 1, 1], [4, 4, 8], [11, 4, 4], [11, 4, 16], [6, 6, 5]];
+  const bronze = [];
+  plan.forEach(([sid, off, pid]) => {
+    for (let d = 3; d <= 7; d++) {
+      const sp = officeSp[off][Math.floor(rnd() * officeSp[off].length)];
+      let em = emails[sid] + "@atelier.example";
+      if (rnd() < 0.3) em = em.toUpperCase();
+      const r = rnd();
+      const hrs = r < 0.08 ? "n/a" : r < 0.14 ? "" : String([6, 7, 7.5, 8, 8, 8.5][Math.floor(rnd() * 6)]);
+      bronze.push([em, codes[pid], sp, `2026-11-0${d}`, hrs]);
+    }
+  });
+  [3, 9, 17, 22, 30].forEach(i => bronze.push(bronze[i].slice()));
+
+  const q = v => v === null ? "NULL" : typeof v === "number" ? String(v) : "'" + String(v).replace(/'/g, "''") + "'";
+  const ins = (t, rows) => rows.map(r => `INSERT INTO ${t} VALUES (${r.map(q).join(", ")});`).join("\n");
+  const sql = [
+    "CREATE TABLE dim_office (office_id INTEGER PRIMARY KEY, office_name TEXT, region TEXT, country TEXT, bill_rate INTEGER);",
+    "CREATE TABLE dim_client (client_id INTEGER PRIMARY KEY, client_name TEXT, sector TEXT);",
+    "CREATE TABLE dim_project (project_id INTEGER PRIMARY KEY, project_name TEXT, client_id INTEGER, office_id INTEGER, practice_area TEXT, status TEXT, gross_sf INTEGER);",
+    "CREATE TABLE dim_staff (staff_id INTEGER PRIMARY KEY, staff_name TEXT, role TEXT, office_id INTEGER);",
+    "CREATE TABLE project_staff (project_id INTEGER, staff_id INTEGER);",
+    "CREATE TABLE dim_date (date_key TEXT PRIMARY KEY, year INTEGER, quarter TEXT, month_num INTEGER, month_name TEXT);",
+    "CREATE TABLE fact_fees (project_id INTEGER, office_id INTEGER, client_id INTEGER, month_date TEXT, fee_usd INTEGER, hours INTEGER);",
+    "CREATE TABLE bronze_timesheets (staff_email TEXT, project_code TEXT, office TEXT, work_date TEXT, hours TEXT);",
+    ins("dim_office", offices), ins("dim_client", clients),
+    ins("dim_project", projects.map(p => [p[0], p[1], p[2], p[3], p[4], p[5], p[8]])),
+    ins("dim_staff", staff),
+    ins("project_staff", Object.entries(team).flatMap(([p, ss]) => ss.map(x => [+p, x]))),
+    ins("dim_date", months.map(m => { const y = +m.slice(0, 4), mo = +m.slice(5, 7); return [m, y, "Q" + Math.ceil(mo / 3), mo, MN[mo - 1]]; })),
+    ins("fact_fees", fees), ins("bronze_timesheets", bronze)
+  ].join("\n");
+  const schema = [
+    {table:"fact_fees", cols:[["project_id","INTEGER"],["office_id","INTEGER"],["client_id","INTEGER"],["month_date","TEXT"],["fee_usd","INTEGER"],["hours","INTEGER"]]},
+    {table:"dim_project", cols:[["project_id","INTEGER"],["project_name","TEXT"],["client_id","INTEGER"],["office_id","INTEGER"],["practice_area","TEXT"],["status","TEXT"],["gross_sf","INTEGER"]]},
+    {table:"dim_office", cols:[["office_id","INTEGER"],["office_name","TEXT"],["region","TEXT"],["country","TEXT"],["bill_rate","INTEGER"]]},
+    {table:"dim_client", cols:[["client_id","INTEGER"],["client_name","TEXT"],["sector","TEXT"]]},
+    {table:"dim_date", cols:[["date_key","TEXT"],["year","INTEGER"],["quarter","TEXT"],["month_num","INTEGER"],["month_name","TEXT"]]},
+    {table:"dim_staff", cols:[["staff_id","INTEGER"],["staff_name","TEXT"],["role","TEXT"],["office_id","INTEGER"]]},
+    {table:"project_staff", cols:[["project_id","INTEGER"],["staff_id","INTEGER"]]}
+  ];
+  const bronzeSchema = [{table:"bronze_timesheets", cols:[["staff_email","TEXT"],["project_code","TEXT"],["office","TEXT"],["work_date","TEXT"],["hours","TEXT"]]}];
+  return { sql, schema, bronzeSchema };
+})();
+
 /* ===== Introduction to HTML and CSS ===== */
 /* Checks run against the rendered preview. They receive h (helpers), doc (the preview document) and code (the raw source).
    Call h.need(condition, message) for each requirement; the first failing message is shown to the learner. */
@@ -1397,6 +1506,635 @@ COURSES.push({
 });
 TRACKS.push({id:"web-foundations", title:"Web Foundations", desc:"Learn to build and style web pages with HTML and CSS.", courses:["intro-html"]});
 
+/* ===== Power BI modeling, DAX, and Fabric courses (practiced in SQL on the portfolio dataset) ===== */
+const PF = { pkgs:["sqlite3"], lang:"sql", seed:PORTFOLIO.sql, schema:PORTFOLIO.schema,
+  datasets:["Atelier portfolio: a fictional design firm with projects, offices, clients, staff and monthly fees (Jan 2025 to Oct 2026)"] };
+
+/* ---------- Data Modeling for Power BI ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"pbi-modeling", title:"Data Modeling for Power BI", tech:"Power BI", level:"Intermediate", hours:3,
+  desc:"Design semantic models that give the right numbers: star schemas, relationships, filter direction, date tables and data quality.",
+  long:"A Power BI report is only as good as the semantic model behind it. In this course you'll learn to think in facts and dimensions, read relationship cardinality and filter direction, and spot the modeling mistakes that quietly inflate totals or produce (Blank) rows. Power BI itself can't run in a browser, so you'll practice each concept by querying a design firm's star schema with SQL: every relationship in Power BI behaves like a join, and every slicer like a filter.",
+  prereq:["intro-sql"],
+  chapters:[
+  { title:"Star Schemas", desc:"Learn the shape that Power BI is built for: fact tables of events surrounded by dimension tables that describe them.",
+    lessons:[
+    {type:"video", title:"Facts and dimensions", slides:[
+      {h:"Two kinds of tables", b:["Fact tables record events or measurements: fees billed, hours worked","Dimension tables describe the things involved: projects, offices, clients, dates","Facts are long and narrow; dimensions are short and wide"]},
+      {h:"The star schema", b:["One fact table in the middle","Each dimension connects to it through a key","Power BI's engine, VertiPaq, is optimized for this shape"], code:"dim_office    dim_client\n       \\        /\n       fact_fees ---- dim_date\n           |\n      dim_project"},
+      {h:"Grain", b:["The grain is what one row of the fact table represents","Here: one project, one month","Decide the grain first; every measure depends on it"]},
+      {h:"Keys", b:["A dimension has one row per key (the one side)","A fact table repeats keys many times (the many side)","These keys are what relationships connect"]}
+    ]},
+    {type:"code", title:"Explore the fact table", xp:100,
+      context:"`fact_fees` stores the fees billed and hours worked on each project. Before building anything in Power BI, you need to know how big a fact table is and what it covers.\n\nThe tables are listed in the **Tables** tab below the editor.",
+      instr:["Return one row with three columns: the number of rows in `fact_fees` as `row_count`, the number of distinct `project_id` values as `projects`, and the number of distinct `month_date` values as `months`."],
+      hint:"`SELECT COUNT(*) AS row_count, COUNT(DISTINCT project_id) AS projects, COUNT(DISTINCT month_date) AS months FROM fact_fees;`",
+      starter:"-- Profile the fact table\n",
+      solution:"-- Profile the fact table\nSELECT COUNT(*) AS row_count,\n       COUNT(DISTINCT project_id) AS projects,\n       COUNT(DISTINCT month_date) AS months\nFROM fact_fees;\n"},
+    {type:"code", title:"Check the grain", xp:100,
+      context:"The grain of `fact_fees` should be one row per project per month. If any project appears twice in the same month, totals in Power BI will double count. A query that returns no rows is the result you're hoping for here.",
+      instr:["Group `fact_fees` by `project_id` and `month_date`.","Return the groups that have more than one row, with columns `project_id`, `month_date` and `n` (the row count)."],
+      hint:"Use `GROUP BY project_id, month_date` and `HAVING COUNT(*) > 1`.",
+      starter:"-- Find any project-months with more than one row\n",
+      solution:"-- Find any project-months with more than one row\nSELECT project_id, month_date, COUNT(*) AS n\nFROM fact_fees\nGROUP BY project_id, month_date\nHAVING COUNT(*) > 1;\n"},
+    {type:"code", title:"Relationships are joins", xp:100,
+      context:"When you put `dim_office[region]` on a visual next to a fees measure, Power BI follows the relationship from `dim_office` to `fact_fees`. In SQL, that's a join on the key both tables share.",
+      instr:["Join `fact_fees` to `dim_office` on `office_id`.","Return each `region` with the sum of `fee_usd` as `total_fees`.","Sort by `total_fees` from highest to lowest."],
+      hint:"`JOIN dim_office o ON f.office_id = o.office_id`, then `GROUP BY o.region`.",
+      starter:"-- Total fees by region\n",
+      solution:"-- Total fees by region\nSELECT o.region, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY total_fees DESC;\n"},
+    {type:"mcq", title:"Fact or dimension?",
+      context:"Classifying tables correctly is the first modeling decision you make.",
+      q:"A table has one row per staff member with their name, role and home office. What kind of table is it?",
+      options:["A fact table","A dimension table","A bridge table","A date table"], answer:1,
+      fb:["Facts record events or measurements, like hours worked.","Correct! It describes staff, so it's a dimension.","A bridge connects two dimensions in a many-to-many relationship.","It doesn't describe dates."]}
+  ]},
+  { title:"Relationships and Filter Direction", desc:"Understand cardinality, how filters flow through relationships, and why bidirectional filters and many-to-many relationships can inflate totals.",
+    lessons:[
+    {type:"video", title:"Cardinality and filter direction", slides:[
+      {h:"Cardinality", b:["One-to-many (1:*): one office, many fee rows. The default and the best choice","One-to-one (1:1): rare, often means two tables should be merged","Many-to-many (*:*): needs care, or a bridge table"]},
+      {h:"Filter direction", b:["Single: filters flow from the one side to the many side","Selecting New York in a slicer filters fact_fees to New York rows","The fact table doesn't filter the dimension back"]},
+      {h:"Both (bidirectional)", b:["Filters flow both ways across the relationship","Can make slicers show only values with data","But can create ambiguous paths, slow models and surprising totals","Use it rarely, and on purpose"]},
+      {h:"Active and inactive", b:["Only one active path between two tables","Extra relationships stay inactive","Measures can turn one on with USERELATIONSHIP()"]}
+    ]},
+    {type:"code", title:"Filters flow from dimensions", xp:100,
+      context:"A slicer on `dim_project[practice_area]` set to Hospitality filters `dim_project`, and that filter flows along the one-to-many relationship into `fact_fees`.",
+      instr:["Return the total `fee_usd` for projects whose `practice_area` is `Hospitality`, as a single column named `hospitality_fees`."],
+      hint:"Join `fact_fees` to `dim_project` on `project_id`, then filter with `WHERE p.practice_area = 'Hospitality'`.",
+      starter:"-- Fees for Hospitality projects\n",
+      solution:"-- Fees for Hospitality projects\nSELECT SUM(f.fee_usd) AS hospitality_fees\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nWHERE p.practice_area = 'Hospitality';\n"},
+    {type:"code", title:"Counting through a relationship", xp:100,
+      context:"A measure like `Active Projects = DISTINCTCOUNT(fact_fees[project_id])` counts projects that have fees in the current filter context. On a visual split by region, each region gets its own count.",
+      instr:["For each `region`, count the distinct `project_id` values in `fact_fees`, as `active_projects`.","Sort by `region` alphabetically."],
+      hint:"`COUNT(DISTINCT f.project_id)` with a join to `dim_office`.",
+      starter:"-- Distinct projects with fees, by region\n",
+      solution:"-- Distinct projects with fees, by region\nSELECT o.region, COUNT(DISTINCT f.project_id) AS active_projects\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY o.region;\n"},
+    {type:"video", title:"Many-to-many relationships", slides:[
+      {h:"Staff work on many projects", b:["One project has several staff, one staff member has several projects","project_staff is a bridge table between dim_staff and dim_project"]},
+      {h:"The inflation trap", b:["Join the fact table straight to the bridge and each fee row repeats once per staff member","Sum it and the total is too high","This is what a careless many-to-many or bidirectional setup can do"], code:"-- 1 fee row x 3 staff = counted 3 times\nSELECT SUM(f.fee_usd)\nFROM fact_fees f\nJOIN project_staff ps ON f.project_id = ps.project_id;"},
+      {h:"Filter, don't multiply", b:["Use the bridge to find which projects match","Then sum the fact table for those projects","In Power BI: dim_staff filters bridge, bridge filters dim_project, dim_project filters facts"]}
+    ]},
+    {type:"code", title:"When totals inflate", xp:100,
+      context:"Let's see the trap with real numbers. Joining `fact_fees` directly to the `project_staff` bridge repeats each fee row once per staff member on the project.",
+      instr:["Return one row with two columns.","`true_total`: the sum of `fee_usd` in `fact_fees` (use a subquery).","`inflated_total`: the sum of `fee_usd` after joining `fact_fees` to `project_staff` on `project_id`."],
+      hint:"`SELECT (SELECT SUM(fee_usd) FROM fact_fees) AS true_total, SUM(f.fee_usd) AS inflated_total FROM fact_fees f JOIN project_staff ps ON ...`",
+      starter:"-- Compare the true total with the inflated one\n",
+      solution:"-- Compare the true total with the inflated one\nSELECT (SELECT SUM(fee_usd) FROM fact_fees) AS true_total,\n       SUM(f.fee_usd) AS inflated_total\nFROM fact_fees f\nJOIN project_staff ps ON f.project_id = ps.project_id;\n"},
+    {type:"code", title:"Filter through a bridge", xp:100,
+      context:"The right pattern: use the bridge to decide *which* projects count, then sum the fact table once. This is what a well-configured many-to-many relationship does in Power BI.",
+      instr:["Return the total `fee_usd` for every project that `Maya Chen` works on, as `maya_project_fees`.","Use a subquery on `project_staff` joined to `dim_staff` to find her `project_id` values, and filter `fact_fees` with `IN`."],
+      hint:"`WHERE project_id IN (SELECT ps.project_id FROM project_staff ps JOIN dim_staff s ON ps.staff_id = s.staff_id WHERE s.staff_name = 'Maya Chen')`",
+      starter:"-- Fees for Maya Chen's projects, without double counting\n",
+      solution:"-- Fees for Maya Chen's projects, without double counting\nSELECT SUM(fee_usd) AS maya_project_fees\nFROM fact_fees\nWHERE project_id IN (\n  SELECT ps.project_id\n  FROM project_staff ps\n  JOIN dim_staff s ON ps.staff_id = s.staff_id\n  WHERE s.staff_name = 'Maya Chen'\n);\n"},
+    {type:"mcq", title:"Single or both?",
+      context:"Filter direction is one of the most common causes of confusing numbers.",
+      q:"You set a relationship between dim_office and fact_fees to filter in both directions. What's the main risk?",
+      options:["The model refuses to refresh","Ambiguous filter paths and unexpected totals, plus slower queries","Slicers stop working","Measures can no longer use SUM"], answer:1,
+      fb:["Refresh still works; the problems show up in the numbers.","Correct! Bidirectional filters can create ambiguous paths and surprising results, and they cost performance.","Slicers still work, often too well.","Aggregations still work."]}
+  ]},
+  { title:"Modeling Best Practices", desc:"Use a proper date table, flatten snowflakes into clean dimensions, and catch data quality problems before they reach a report.",
+    lessons:[
+    {type:"video", title:"Shaping a good model", slides:[
+      {h:"Use a date table", b:["One row per date (or per month for monthly facts), no gaps","Mark it as a date table in Power BI","Put Year, Quarter and Month here, not in the fact table"]},
+      {h:"Flatten snowflakes", b:["dim_project points to dim_client: that's a snowflake","Merge client attributes into the project dimension when you can","Fewer relationships, simpler filters, faster models"]},
+      {h:"Keep it tidy", b:["Hide key columns from report view","Write measures instead of summing columns directly","Use clear, Title Case names for everything people see"]},
+      {h:"Build once, reuse", b:["One shared semantic model can serve many reports","Local teams build their reports on it instead of copying data","Changes go through Dev, Test and Prod workspaces"]}
+    ]},
+    {type:"code", title:"Use the date table", xp:100,
+      context:"`dim_date` has one row per month with `year`, `quarter` and `month_name`. Relating it to `fact_fees[month_date]` lets every visual slice by time without storing those attributes in the fact table.",
+      instr:["Join `fact_fees` to `dim_date` on `f.month_date = d.date_key`.","Keep only `year` 2025.","Return each `quarter` with the sum of `fee_usd` as `total_fees`, sorted by `quarter`."],
+      hint:"`WHERE d.year = 2025 GROUP BY d.quarter ORDER BY d.quarter`.",
+      starter:"-- Fees by quarter for 2025\n",
+      solution:"-- Fees by quarter for 2025\nSELECT d.quarter, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_date d ON f.month_date = d.date_key\nWHERE d.year = 2025\nGROUP BY d.quarter\nORDER BY d.quarter;\n"},
+    {type:"code", title:"Flatten a snowflake", xp:100,
+      context:"In Power Query you'd merge `dim_client` into `dim_project` so report builders get one Project dimension with the client's name and sector built in.",
+      instr:["Join `dim_project` to `dim_client` on `client_id`.","Return `project_id`, `project_name`, `practice_area`, `client_name` and `sector`, sorted by `project_id`."],
+      hint:"`FROM dim_project p JOIN dim_client c ON p.client_id = c.client_id`.",
+      starter:"-- Build a flattened project dimension\n",
+      solution:"-- Build a flattened project dimension\nSELECT p.project_id, p.project_name, p.practice_area, c.client_name, c.sector\nFROM dim_project p\nJOIN dim_client c ON p.client_id = c.client_id\nORDER BY p.project_id;\n"},
+    {type:"code", title:"Find orphan keys", xp:100,
+      context:"If a fact row's key has no match in its dimension, Power BI groups it under **(Blank)**. Finding these orphan keys early saves a lot of confused stakeholders.",
+      instr:["Find every `project_id` in `fact_fees` that has no matching row in `dim_project`.","Return `project_id` and the number of fact rows as `row_count`."],
+      hint:"Use `LEFT JOIN dim_project p ON f.project_id = p.project_id` and keep rows `WHERE p.project_id IS NULL`.",
+      starter:"-- Fact rows with no matching project\n",
+      solution:"-- Fact rows with no matching project\nSELECT f.project_id, COUNT(*) AS row_count\nFROM fact_fees f\nLEFT JOIN dim_project p ON f.project_id = p.project_id\nWHERE p.project_id IS NULL\nGROUP BY f.project_id;\n"},
+    {type:"mcq", title:"The mysterious (Blank)",
+      context:"Every Power BI developer meets (Blank) eventually.",
+      q:"A slicer on Project Name shows a (Blank) item with fees attached. What is the most likely cause?",
+      options:["A measure returns zero","Fact rows have project keys that don't exist in the project dimension","The date table is missing","The relationship is set to both directions"], answer:1,
+      fb:["Zero values don't create a (Blank) member.","Correct! Orphan keys in the fact table are grouped under (Blank).","A missing date table causes other problems, not this one.","Filter direction doesn't create the (Blank) member."]}
+  ]}
+  ],
+  practice:[
+    {q:"What does the grain of a fact table describe?", options:["Its number of columns","What one row represents","Its refresh schedule","Its file size"], answer:1},
+    {q:"Which cardinality should most relationships in a star schema have?", options:["Many-to-many","One-to-one","One-to-many","Many-to-one bidirectional"], answer:2},
+    {q:"Where should Year and Month attributes live?", options:["In every fact table","In a date dimension","In a measure","In the report theme"], answer:1},
+    {q:"Which function activates an inactive relationship inside a measure?", options:["RELATED","USERELATIONSHIP","CROSSFILTER","TREATAS"], answer:1},
+    {q:"Joining a fact table directly to a bridge table and summing usually...", options:["Undercounts","Inflates totals","Has no effect","Fails with an error"], answer:1}
+  ]
+}));
+
+/* ---------- DAX Fundamentals ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"dax", title:"DAX Fundamentals", tech:"Power BI", level:"Intermediate", hours:3,
+  desc:"Write measures with confidence: filter context, CALCULATE, iterators, safe division, ranking and time intelligence.",
+  long:"DAX is the formula language of Power BI semantic models. The hard part isn't the syntax, it's understanding filter context: the set of filters that decides which rows a measure sees. In this course every lesson shows a real DAX pattern and has you reproduce its result in SQL against the same star schema. Seeing the equivalent query makes it clear what DAX is doing behind the scenes.",
+  prereq:["pbi-modeling"],
+  chapters:[
+  { title:"Measures and Columns", desc:"Learn the difference between calculated columns and measures, and write your first measure.",
+    lessons:[
+    {type:"video", title:"What is DAX?", slides:[
+      {h:"DAX", b:["Data Analysis Expressions","Used for measures, calculated columns and calculated tables","Looks like Excel formulas, but works on tables and columns"], code:"Total Fees = SUM ( fact_fees[fee_usd] )"},
+      {h:"Calculated columns", b:["Computed row by row when the model refreshes","Stored in the model, so they use memory","Good for attributes you slice or filter by"], code:"Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )"},
+      {h:"Measures", b:["Computed at query time, for each cell of a visual","Respond to slicers, filters and visual layout","Use them for anything you aggregate"], code:"Total Hours = SUM ( fact_fees[hours] )"},
+      {h:"Reading DAX in this course", b:["Each exercise shows a DAX measure","You'll write the SQL that returns the same numbers","Same data, same answer, two languages"]}
+    ]},
+    {type:"code", title:"Your first measure", xp:100,
+      context:"In Power BI, this measure on a card visual with no filters returns one number:\n\n`Total Fees = SUM ( fact_fees[fee_usd] )`",
+      instr:["Write the SQL that returns the same number, as a single column called `total_fees`."],
+      hint:"`SELECT SUM(fee_usd) AS total_fees FROM fact_fees;`",
+      starter:"-- Total Fees = SUM ( fact_fees[fee_usd] )\n",
+      solution:"-- Total Fees = SUM ( fact_fees[fee_usd] )\nSELECT SUM(fee_usd) AS total_fees\nFROM fact_fees;\n"},
+    {type:"code", title:"A calculated column", xp:100,
+      context:"A calculated column runs once per row of its table:\n\n`Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )`\n\nIn SQL, a row-level expression in SELECT does the same thing. Multiply by `1.0` so SQLite divides with decimals.",
+      instr:["Return `project_id`, `month_date` and `fee_usd * 1.0 / hours` rounded to 2 decimals as `fee_per_hour`.","Sort by `project_id`, then `month_date`, and keep the first 10 rows."],
+      hint:"`ROUND(fee_usd * 1.0 / hours, 2) AS fee_per_hour` ... `ORDER BY project_id, month_date LIMIT 10`.",
+      starter:"-- Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )\n",
+      solution:"-- Fee Per Hour = DIVIDE ( fact_fees[fee_usd], fact_fees[hours] )\nSELECT project_id, month_date, ROUND(fee_usd * 1.0 / hours, 2) AS fee_per_hour\nFROM fact_fees\nORDER BY project_id, month_date\nLIMIT 10;\n"},
+    {type:"mcq", title:"Column or measure?",
+      context:"Choosing between a column and a measure is one of the most common DAX decisions.",
+      q:"You need a percentage of total fees that updates when someone changes the region slicer. What should you create?",
+      options:["A calculated column","A measure","A calculated table","A new fact table"], answer:1,
+      fb:["Calculated columns are computed at refresh, so they don't react to slicers.","Correct! Measures are evaluated in the current filter context, so they respond to slicers.","A table won't react to slicers either.","This is a calculation, not new data."]}
+  ]},
+  { title:"Filter Context and CALCULATE", desc:"Understand how visuals create filter context, and use CALCULATE and ALL to change it.",
+    lessons:[
+    {type:"video", title:"Filter context", slides:[
+      {h:"Every cell has filters", b:["A matrix with Sector on rows gives each row a filter: Sector = Healthcare, and so on","Slicers and page filters add more","The measure is evaluated once per cell, under those filters"]},
+      {h:"In SQL terms", b:["Rows of a visual are like GROUP BY","Slicers and filters are like WHERE"], code:"SELECT c.sector, SUM(f.fee_usd)\nFROM fact_fees f JOIN dim_client c ON ...\nWHERE <slicers>\nGROUP BY c.sector"},
+      {h:"CALCULATE", b:["Evaluates an expression in a modified filter context","Simple filters replace existing filters on the same column","Other filters are kept"], code:"EMEA Fees =\nCALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )"},
+      {h:"ALL", b:["Removes filters from a table or column","Used for percent of total and ranking"], code:"% Of Fees =\nDIVIDE ( [Total Fees], CALCULATE ( [Total Fees], ALL ( dim_office ) ) )"}
+    ]},
+    {type:"code", title:"A measure in a visual", xp:100,
+      context:"Put `[Total Fees]` in a table visual with `dim_client[sector]` on rows. Each row gets a filter on its sector.",
+      instr:["Return each `sector` with `total_fees`, the sum of `fee_usd`.","Sort by `total_fees` from highest to lowest."],
+      hint:"Join `fact_fees` to `dim_client` on `client_id` and group by `sector`.",
+      starter:"-- [Total Fees] by dim_client[sector]\n",
+      solution:"-- [Total Fees] by dim_client[sector]\nSELECT c.sector, SUM(f.fee_usd) AS total_fees\nFROM fact_fees f\nJOIN dim_client c ON f.client_id = c.client_id\nGROUP BY c.sector\nORDER BY total_fees DESC;\n"},
+    {type:"code", title:"CALCULATE adds a filter", xp:100,
+      context:"On a visual with `dim_project[practice_area]` on rows, this measure keeps each row's practice area filter and adds a region filter:\n\n`EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )`\n\nPractice areas with no EMEA fees show **blank**, not zero. In SQL, a `CASE` without an `ELSE` gives `NULL`, which behaves like BLANK.",
+      instr:["Join `fact_fees` to `dim_project` and `dim_office`.","Return each `practice_area` with `emea_fees`: `SUM(CASE WHEN o.region = 'EMEA' THEN f.fee_usd END)`.","Sort by `practice_area`."],
+      hint:"Two joins: `JOIN dim_project p ON f.project_id = p.project_id JOIN dim_office o ON f.office_id = o.office_id`.",
+      starter:"-- EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )\n-- shown by dim_project[practice_area]\n",
+      solution:"-- EMEA Fees = CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )\n-- shown by dim_project[practice_area]\nSELECT p.practice_area,\n       SUM(CASE WHEN o.region = 'EMEA' THEN f.fee_usd END) AS emea_fees\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY p.practice_area\nORDER BY p.practice_area;\n"},
+    {type:"code", title:"ALL and percent of total", xp:100,
+      context:"`ALL ( dim_office )` removes the region filter for the denominator, so every row divides by the grand total:\n\n`% Of Fees = DIVIDE ( [Total Fees], CALCULATE ( [Total Fees], ALL ( dim_office ) ) )`",
+      instr:["Return each `region` with `pct_of_fees`: 100 times its fees divided by total fees across all rows, rounded to 1 decimal.","Use a subquery for the grand total. Sort by `region`."],
+      hint:"`ROUND(100.0 * SUM(f.fee_usd) / (SELECT SUM(fee_usd) FROM fact_fees), 1)`.",
+      starter:"-- % Of Fees by dim_office[region]\n",
+      solution:"-- % Of Fees by dim_office[region]\nSELECT o.region,\n       ROUND(100.0 * SUM(f.fee_usd) / (SELECT SUM(fee_usd) FROM fact_fees), 1) AS pct_of_fees\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.region\nORDER BY o.region;\n"},
+    {type:"mcq", title:"How CALCULATE treats filters",
+      context:"Knowing what CALCULATE keeps and what it replaces is the key to reading most measures.",
+      q:"A slicer is set to region = APAC. A card shows `CALCULATE ( [Total Fees], dim_office[region] = \"EMEA\" )`. What does it show?",
+      options:["APAC fees","EMEA fees","Blank, because the filters conflict","All fees"], answer:1,
+      fb:["The slicer's region filter is replaced, not kept.","Correct! A simple filter in CALCULATE replaces existing filters on the same column.","CALCULATE overrides the column filter rather than combining it here.","Only filters on region are changed; the result is EMEA only."]}
+  ]},
+  { title:"Iterators, DIVIDE and Ranking", desc:"Use X functions that work row by row, divide safely, and rank items with RANKX.",
+    lessons:[
+    {type:"video", title:"Iterators", slides:[
+      {h:"X functions", b:["SUMX, AVERAGEX, MAXX, COUNTX","Iterate a table row by row, evaluate an expression, then aggregate","RELATED() reaches across a relationship to the one side"], code:"Standard Value =\nSUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )"},
+      {h:"DIVIDE", b:["DIVIDE ( numerator, denominator )","Returns BLANK instead of an error when dividing by zero","Optional third argument sets the alternate result"]},
+      {h:"RANKX", b:["Ranks items by an expression","Usually used with ALL() so every item is ranked against the others"], code:"Office Rank =\nRANKX ( ALL ( dim_office[office_name] ), [Total Fees] )"}
+    ]},
+    {type:"code", title:"SUMX", xp:100,
+      context:"Each office has a standard `bill_rate` (USD per hour) in `dim_office`. This measure multiplies hours by the related rate on every fact row, then sums:\n\n`Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )`",
+      instr:["Return one column, `standard_value`: the sum of `f.hours * o.bill_rate` across all fact rows."],
+      hint:"Join `dim_office` and use `SUM(f.hours * o.bill_rate)`.",
+      starter:"-- Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )\n",
+      solution:"-- Standard Value = SUMX ( fact_fees, fact_fees[hours] * RELATED ( dim_office[bill_rate] ) )\nSELECT SUM(f.hours * o.bill_rate) AS standard_value\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id;\n"},
+    {type:"code", title:"Safe division", xp:100,
+      context:"Some projects don't have a gross square footage yet: it's either `NULL` or `0`. `DIVIDE` returns BLANK for those instead of an error:\n\n`Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )`\n\nIn SQL, `NULLIF(x, 0)` turns a zero into `NULL`, and dividing by `NULL` gives `NULL`.",
+      instr:["For each project, return `project_name` and `fee_per_sf`: its total `fee_usd` times `1.0` divided by `NULLIF(p.gross_sf, 0)`, rounded to 2 decimals.","Sort by `project_name`."],
+      hint:"Group by `p.project_id, p.project_name, p.gross_sf`.",
+      starter:"-- Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )\n",
+      solution:"-- Fee Per SF = DIVIDE ( [Total Fees], SUM ( dim_project[gross_sf] ) )\nSELECT p.project_name,\n       ROUND(SUM(f.fee_usd) * 1.0 / NULLIF(p.gross_sf, 0), 2) AS fee_per_sf\nFROM fact_fees f\nJOIN dim_project p ON f.project_id = p.project_id\nGROUP BY p.project_id, p.project_name, p.gross_sf\nORDER BY p.project_name;\n"},
+    {type:"code", title:"Ranking with RANKX", xp:100,
+      context:"`RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )` ranks every office by fees, 1 being the highest. SQL's `RANK()` window function does the same.",
+      instr:["Return `office_name`, `total_fees` and `office_rank`, where `office_rank` is `RANK() OVER (ORDER BY SUM(f.fee_usd) DESC)`.","Sort by `office_rank`."],
+      hint:"Group by `o.office_name` and add the window function in SELECT.",
+      starter:"-- Office Rank = RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )\n",
+      solution:"-- Office Rank = RANKX ( ALL ( dim_office[office_name] ), [Total Fees] )\nSELECT o.office_name,\n       SUM(f.fee_usd) AS total_fees,\n       RANK() OVER (ORDER BY SUM(f.fee_usd) DESC) AS office_rank\nFROM fact_fees f\nJOIN dim_office o ON f.office_id = o.office_id\nGROUP BY o.office_name\nORDER BY office_rank;\n"},
+    {type:"mcq", title:"DIVIDE by zero",
+      context:"DIVIDE exists so your visuals don't break on missing data.",
+      q:"What does `DIVIDE ( 10, 0 )` return?",
+      options:["An error","0","BLANK","Infinity"], answer:2,
+      fb:["The / operator would return Infinity here; DIVIDE handles the zero.","Not by default. Pass 0 as the third argument if you want it.","Correct! DIVIDE returns BLANK unless you supply an alternate result.","That's what the / operator returns, which is why DIVIDE is safer."]}
+  ]},
+  { title:"Time Intelligence", desc:"Use a date table to compute year-to-date totals and compare with the same period last year.",
+    lessons:[
+    {type:"video", title:"Time intelligence", slides:[
+      {h:"Needs a date table", b:["Time intelligence functions need a proper date table","Contiguous dates, no gaps, marked as the date table","Relate it to every fact table's date column"]},
+      {h:"Year to date", b:["Accumulates from the start of the year to the current date"], code:"Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )"},
+      {h:"Prior period", b:["SAMEPERIODLASTYEAR shifts the date filter back one year","DATEADD shifts by any number of days, months, quarters or years"], code:"Fees PY =\nCALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )"}
+    ]},
+    {type:"code", title:"Monthly trend", xp:100,
+      context:"A line chart with `dim_date[date_key]` on the axis and `[Total Fees]` as the value shows the monthly trend.",
+      instr:["Return each `month_date` with the sum of `fee_usd` as `total_fees`, sorted by `month_date`."],
+      hint:"`GROUP BY month_date ORDER BY month_date`.",
+      starter:"-- [Total Fees] by month\n",
+      solution:"-- [Total Fees] by month\nSELECT month_date, SUM(fee_usd) AS total_fees\nFROM fact_fees\nGROUP BY month_date\nORDER BY month_date;\n"},
+    {type:"code", title:"Year to date", xp:100,
+      context:"`Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )` restarts at January every year. In SQL, a running window sum partitioned by year does the same.",
+      instr:["Join `fact_fees` to `dim_date`.","Return `date_key` and `fees_ytd`: `SUM(SUM(f.fee_usd)) OVER (PARTITION BY d.year ORDER BY d.date_key)`.","Group by `d.date_key, d.year` and sort by `date_key`."],
+      hint:"The inner `SUM` aggregates each month; the outer `SUM ... OVER` accumulates within each year.",
+      starter:"-- Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )\n",
+      solution:"-- Fees YTD = TOTALYTD ( [Total Fees], dim_date[date_key] )\nSELECT d.date_key,\n       SUM(SUM(f.fee_usd)) OVER (PARTITION BY d.year ORDER BY d.date_key) AS fees_ytd\nFROM fact_fees f\nJOIN dim_date d ON f.month_date = d.date_key\nGROUP BY d.date_key, d.year\nORDER BY d.date_key;\n"},
+    {type:"code", title:"Compare with last year", xp:100,
+      context:"`Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )` returns last year's value for each month. In SQL, join the monthly totals to themselves, shifted by a year with `date(cur.month_date, '-1 year')`.",
+      instr:["The `monthly` CTE is written for you.","For months in 2026, return `month_date`, `total_fees`, and `fees_py`: the `total_fees` of the same month one year earlier.","Use a `LEFT JOIN` and sort by `month_date`."],
+      hint:"`FROM monthly cur LEFT JOIN monthly prev ON prev.month_date = date(cur.month_date, '-1 year') WHERE cur.month_date >= '2026-01-01'`.",
+      starter:"-- Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )\nWITH monthly AS (\n  SELECT month_date, SUM(fee_usd) AS total_fees\n  FROM fact_fees\n  GROUP BY month_date\n)\nSELECT *\nFROM monthly;\n",
+      solution:"-- Fees PY = CALCULATE ( [Total Fees], SAMEPERIODLASTYEAR ( dim_date[date_key] ) )\nWITH monthly AS (\n  SELECT month_date, SUM(fee_usd) AS total_fees\n  FROM fact_fees\n  GROUP BY month_date\n)\nSELECT cur.month_date, cur.total_fees, prev.total_fees AS fees_py\nFROM monthly cur\nLEFT JOIN monthly prev ON prev.month_date = date(cur.month_date, '-1 year')\nWHERE cur.month_date >= '2026-01-01'\nORDER BY cur.month_date;\n"},
+    {type:"mcq", title:"Time intelligence requirements",
+      context:"Most time intelligence bugs come from the date table, not the measure.",
+      q:"TOTALYTD returns strange results. What should you check first?",
+      options:["That the visual uses a line chart","That there's a contiguous date table, marked as a date table and related to the facts","That the measure uses SUMX","That bidirectional filtering is on"], answer:1,
+      fb:["The visual type doesn't affect the calculation.","Correct! Time intelligence relies on a complete, marked date table.","TOTALYTD works with any base measure.","Bidirectional filtering is unrelated and often harmful."]}
+  ]}
+  ],
+  practice:[
+    {q:"When is a calculated column computed?", options:["Every time a visual renders","When the model refreshes","When a slicer changes","Never, it's virtual"], answer:1},
+    {q:"Which function removes filters from a table?", options:["FILTER","ALL","VALUES","RELATED"], answer:1},
+    {q:"Which function reaches the one side of a relationship from a row of the many side?", options:["RELATEDTABLE","LOOKUP","RELATED","USERELATIONSHIP"], answer:2},
+    {q:"Which function would you use for a running total from January?", options:["DATEADD","TOTALYTD","SAMEPERIODLASTYEAR","PARALLELPERIOD"], answer:1},
+    {q:"SUMX evaluates its expression...", options:["Once for the whole table","Once per row, then sums","Only on the one side","Only at refresh"], answer:1}
+  ]
+}));
+
+/* ---------- Microsoft Fabric ---------- */
+COURSES.push(Object.assign({}, PF, {
+  id:"fabric", title:"Microsoft Fabric Lakehouse Essentials", tech:"Fabric", level:"Beginner", hours:2,
+  desc:"Understand how Fabric fits together, clean raw data through bronze, silver and gold layers, and ship safely from Dev to Prod.",
+  long:"Microsoft Fabric brings data engineering, warehousing and Power BI together on one storage layer, OneLake. In this course you'll learn the main pieces and when to use a Lakehouse versus a Warehouse. Then you'll take a messy raw timesheet export and clean it through the medallion layers with SQL, the same kind of work you'd do in a notebook or the SQL analytics endpoint. You'll finish with how teams govern and deploy Fabric content across Dev, Test and Prod.",
+  prereq:["intro-sql"],
+  schema: PORTFOLIO.bronzeSchema.concat(PORTFOLIO.schema),
+  chapters:[
+  { title:"Fabric Fundamentals", desc:"Learn the building blocks of Microsoft Fabric and how lakehouses, warehouses and semantic models connect.",
+    lessons:[
+    {type:"video", title:"What is Microsoft Fabric?", slides:[
+      {h:"One platform", b:["A software-as-a-service analytics platform from Microsoft","Workloads for data integration, data engineering, warehousing, data science, real-time analytics and Power BI","Everything lives in workspaces, backed by a capacity"]},
+      {h:"OneLake", b:["A single data lake for the whole organization","Tables are stored in the open Delta Parquet format","Shortcuts point to data elsewhere without copying it"]},
+      {h:"The usual flow", b:["Ingest: pipelines or dataflows bring data in","Transform: notebooks or SQL clean and shape it","Model: a semantic model defines relationships and measures","Report: Power BI reports read the semantic model"]}
+    ]},
+    {type:"video", title:"Lakehouse or Warehouse?", slides:[
+      {h:"Lakehouse", b:["Holds files and Delta tables","Engineered mostly with Spark notebooks (Python, Spark SQL)","Comes with a SQL analytics endpoint that is read-only"]},
+      {h:"Warehouse", b:["A full T-SQL data warehouse: create, insert, update, delete","Great for teams that work in SQL"]},
+      {h:"Direct Lake", b:["Semantic models can read Delta tables in OneLake directly","No scheduled import copy of the data","Fast like import, fresh like DirectQuery"]}
+    ]},
+    {type:"mcq", title:"The SQL analytics endpoint",
+      context:"Every lakehouse gets a SQL analytics endpoint automatically.",
+      q:"What can you do with a lakehouse's SQL analytics endpoint?",
+      options:["Insert and update rows with T-SQL","Query the lakehouse's Delta tables with T-SQL, read-only","Run Python notebooks","Edit Power BI reports"], answer:1,
+      fb:["Writes go through Spark or a Warehouse; the endpoint is read-only.","Correct! It's a read-only T-SQL interface over the lakehouse tables.","Notebooks are a separate item.","Reports are edited in Power BI."]},
+    {type:"mcq", title:"Where data lives",
+      context:"Fabric workloads share one storage layer.",
+      q:"In what format does Fabric store lakehouse and warehouse tables in OneLake?",
+      options:["CSV","Excel","Delta Parquet","JSON"], answer:2,
+      fb:["CSV files can be loaded, but tables are stored as Delta.","Not for tables.","Correct! Delta Parquet is the common table format across Fabric.","JSON can be ingested, but isn't the table format."]}
+  ]},
+  { title:"Medallion Architecture", desc:"Take raw timesheet data from bronze to silver to gold with SQL: profile it, deduplicate it, standardize it and aggregate it.",
+    lessons:[
+    {type:"video", title:"Bronze, silver, gold", slides:[
+      {h:"Bronze", b:["Raw data, exactly as it arrived","Duplicates, typos and mixed formats included","Never edited, so you can always reprocess"]},
+      {h:"Silver", b:["Cleaned and conformed","Types fixed, duplicates removed, names standardized","One trustworthy version of each record"]},
+      {h:"Gold", b:["Business-ready tables shaped for reporting","Aggregated or modeled as star schemas","What semantic models and reports read"]},
+      {h:"Our bronze table", b:["bronze_timesheets: a week of raw timesheet exports","Check the Tables tab, then let's clean it"]}
+    ]},
+    {type:"code", title:"Profile the bronze table", xp:100,
+      context:"Always profile raw data before cleaning it. A quick count of rows and distinct values tells you a lot. If the firm only has three offices in this export, how many spellings of office names are there?",
+      instr:["Return one row with `row_count`, the number of rows in `bronze_timesheets`, and `office_spellings`, the number of distinct `office` values."],
+      hint:"`COUNT(*)` and `COUNT(DISTINCT office)`.",
+      starter:"-- Profile bronze_timesheets\n",
+      solution:"-- Profile bronze_timesheets\nSELECT COUNT(*) AS row_count, COUNT(DISTINCT office) AS office_spellings\nFROM bronze_timesheets;\n"},
+    {type:"code", title:"Find duplicate rows", xp:100,
+      context:"Exports often send the same record twice. A row is a duplicate when every column matches another row.",
+      instr:["Group by all five columns and return groups with more than one row.","Return `staff_email`, `work_date` and `copies` (the row count), sorted by `staff_email` then `work_date`."],
+      hint:"`GROUP BY staff_email, project_code, office, work_date, hours HAVING COUNT(*) > 1`.",
+      starter:"-- Find exact duplicates\n",
+      solution:"-- Find exact duplicates\nSELECT staff_email, work_date, COUNT(*) AS copies\nFROM bronze_timesheets\nGROUP BY staff_email, project_code, office, work_date, hours\nHAVING COUNT(*) > 1\nORDER BY staff_email, work_date;\n"},
+    {type:"code", title:"Standardize office names", xp:100,
+      context:"The same office is spelled several ways: extra spaces, lowercase, and abbreviations like `NYC` and `LDN`. Map them to one clean name with `CASE`, after normalizing with `LOWER(TRIM(office))`.",
+      instr:["Return each distinct raw `office` value as `raw_office` and its clean name as `office_name`.","Map `new york` and `nyc` to `New York`, `london` and `ldn` to `London`, and `tokyo` to `Tokyo`.","Sort by `raw_office`."],
+      hint:"`CASE WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York' WHEN ... END AS office_name`.",
+      starter:"-- Map raw office spellings to clean names\n",
+      solution:"-- Map raw office spellings to clean names\nSELECT DISTINCT office AS raw_office,\n       CASE\n         WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n         WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n         WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n       END AS office_name\nFROM bronze_timesheets\nORDER BY raw_office;\n"},
+    {type:"code", title:"Fix types and bad values", xp:100,
+      context:"`hours` arrived as text. Some rows say `n/a` and some are empty. `CAST(hours AS REAL)` turns those into `0`, which makes them easy to filter out.",
+      instr:["Return `staff_email`, `work_date` and `CAST(hours AS REAL)` as `hours`.","Keep only rows where the cast value is greater than 0.","Sort by `staff_email`, then `work_date`, then `hours`."],
+      hint:"`WHERE CAST(hours AS REAL) > 0`.",
+      starter:"-- Convert hours to numbers and drop invalid rows\n",
+      solution:"-- Convert hours to numbers and drop invalid rows\nSELECT staff_email, work_date, CAST(hours AS REAL) AS hours\nFROM bronze_timesheets\nWHERE CAST(hours AS REAL) > 0\nORDER BY staff_email, work_date, hours;\n"},
+    {type:"code", title:"Build the silver table", xp:100,
+      context:"Now put it all together. In Fabric you'd save this result as a silver Delta table. Notice that some emails are uppercase: normalize them with `LOWER(TRIM(...))` too.",
+      instr:["Select `DISTINCT` rows with these columns: `LOWER(TRIM(staff_email))` as `staff_email`, `project_code`, the clean `office_name` from the previous exercise, `work_date`, and `CAST(hours AS REAL)` as `hours`.","Keep only rows with hours greater than 0.","Sort by `staff_email`, then `work_date`, then `project_code`."],
+      hint:"Combine your CASE expression and your WHERE clause from the last two exercises, and add DISTINCT.",
+      starter:"-- Build the silver timesheets\n",
+      solution:"-- Build the silver timesheets\nSELECT DISTINCT\n       LOWER(TRIM(staff_email)) AS staff_email,\n       project_code,\n       CASE\n         WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n         WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n         WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n       END AS office_name,\n       work_date,\n       CAST(hours AS REAL) AS hours\nFROM bronze_timesheets\nWHERE CAST(hours AS REAL) > 0\nORDER BY staff_email, work_date, project_code;\n"},
+    {type:"code", title:"Gold: hours by office", xp:100,
+      context:"Gold tables answer business questions directly. Your silver query is provided as a CTE called `silver`.",
+      instr:["From `silver`, return each `office_name` with `total_hours` (sum of hours) and `staff` (distinct count of `staff_email`).","Sort by `total_hours` from highest to lowest."],
+      hint:"`SELECT office_name, SUM(hours) AS total_hours, COUNT(DISTINCT staff_email) AS staff FROM silver GROUP BY office_name ORDER BY total_hours DESC`.",
+      starter:"WITH silver AS (\n  SELECT DISTINCT\n         LOWER(TRIM(staff_email)) AS staff_email,\n         project_code,\n         CASE\n           WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n           WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n           WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n         END AS office_name,\n         work_date,\n         CAST(hours AS REAL) AS hours\n  FROM bronze_timesheets\n  WHERE CAST(hours AS REAL) > 0\n)\n-- Aggregate silver into a gold table\nSELECT *\nFROM silver;\n",
+      solution:"WITH silver AS (\n  SELECT DISTINCT\n         LOWER(TRIM(staff_email)) AS staff_email,\n         project_code,\n         CASE\n           WHEN LOWER(TRIM(office)) IN ('new york', 'nyc') THEN 'New York'\n           WHEN LOWER(TRIM(office)) IN ('london', 'ldn') THEN 'London'\n           WHEN LOWER(TRIM(office)) = 'tokyo' THEN 'Tokyo'\n         END AS office_name,\n         work_date,\n         CAST(hours AS REAL) AS hours\n  FROM bronze_timesheets\n  WHERE CAST(hours AS REAL) > 0\n)\n-- Aggregate silver into a gold table\nSELECT office_name, SUM(hours) AS total_hours, COUNT(DISTINCT staff_email) AS staff\nFROM silver\nGROUP BY office_name\nORDER BY total_hours DESC;\n"},
+    {type:"mcq", title:"Which layer for reports?",
+      context:"Each layer has a different audience.",
+      q:"Which layer should a Power BI semantic model usually read from?",
+      options:["Bronze","Silver","Gold","Whichever has the most rows"], answer:2,
+      fb:["Bronze is raw and untrustworthy for reporting.","Silver is clean, but not yet shaped for reporting.","Correct! Gold is shaped and ready for business use.","Row count isn't the criterion."]}
+  ]},
+  { title:"Deploying and Governing", desc:"Move content safely from Dev to Test to Prod, control access, and reuse shared semantic models.",
+    lessons:[
+    {type:"video", title:"Dev, Test and Prod", slides:[
+      {h:"Separate workspaces", b:["Develop in a Dev workspace","Validate in Test with realistic data and reviewers","Publish to Prod, where people use it"]},
+      {h:"Deployment pipelines", b:["Promote items from one stage to the next","Compare stages to see what changed","Deployment rules swap settings per stage, like the data source"]},
+      {h:"Git integration", b:["Connect a workspace to a Git repository","Version history, branches and reviews for Fabric items","Supports Azure DevOps and GitHub"]}
+    ]},
+    {type:"video", title:"Access and reuse", slides:[
+      {h:"Workspace roles", b:["Admin, Member, Contributor, Viewer","Viewers can see content but not edit it","Give people the least access they need"]},
+      {h:"Shared semantic models", b:["Build key measures once in a shared model","Other reports connect to it instead of copying the data","Endorse it as Promoted or Certified so people know it's trusted"]},
+      {h:"Protecting data", b:["Row-level security limits which rows a user sees","Sensitivity labels classify and protect content"]}
+    ]},
+    {type:"mcq", title:"Different data source in Prod",
+      context:"The same report often points at different databases in each stage.",
+      q:"Your Prod workspace must read from the production database, while Dev reads from a sample. What handles this in a deployment pipeline?",
+      options:["Row-level security","Deployment rules","Sensitivity labels","A second semantic model with copied measures"], answer:1,
+      fb:["RLS controls which rows users see, not the source.","Correct! Deployment rules change settings like data sources per stage.","Labels classify content.","Copying measures creates two versions of the truth."]},
+    {type:"mcq", title:"Workspace roles",
+      context:"Least privilege keeps production content safe.",
+      q:"Which workspace role lets someone view content without editing it?",
+      options:["Admin","Member","Contributor","Viewer"], answer:3,
+      fb:["Admins have full control.","Members can edit and share.","Contributors can create and edit content.","Correct! Viewers can view and interact, but not edit."]},
+    {type:"mcq", title:"Many teams, same KPIs",
+      context:"Consistency across reports is a governance problem as much as a technical one.",
+      q:"Five teams need the same Total Fees and Utilization measures. What's the best approach?",
+      options:["Each team builds its own model","Build one shared, endorsed semantic model and let teams build reports on it","Email a DAX file around","Put the numbers in Excel"], answer:1,
+      fb:["That leads to five slightly different definitions.","Correct! One shared model gives one definition of each measure.","Copies drift apart over time.","That loses the model and its security."]}
+  ]}
+  ],
+  practice:[
+    {q:"What is OneLake?", options:["A Power BI visual","A single data lake shared across Fabric","A Spark library","A deployment pipeline"], answer:1},
+    {q:"Which item gives full read and write T-SQL?", options:["Lakehouse SQL analytics endpoint","Warehouse","Semantic model","Dataflow"], answer:1},
+    {q:"Which layer keeps raw data untouched?", options:["Bronze","Silver","Gold","Platinum"], answer:0},
+    {q:"What does Direct Lake let a semantic model do?", options:["Write to OneLake","Read Delta tables directly without an import copy","Run notebooks","Skip relationships"], answer:1}
+  ]
+}));
+
+/* ===== HTML Dashboard Visuals ===== */
+COURSES.push({
+  id:"html-dashboards", title:"HTML Dashboard Visuals", tech:"HTML", level:"Intermediate", hours:3, lang:"html",
+  desc:"Design dashboard components in plain HTML and CSS: KPI cards, grid layouts, bars, sparklines, and HTML that works inside Power BI measures.",
+  long:"Hand-built HTML gives you full design control over dashboards, from KPI cards that match your Figma file to charts drawn with a few lines of SVG. In this course you'll build the components of a firm portfolio dashboard: cards, grids, progress bars, bar charts and sparklines. You'll finish by learning how HTML is generated from DAX measures in Power BI's HTML Content visual, and how to write markup that survives being placed inside a DAX string.",
+  pkgs:[], pre:"", datasets:[], prereq:["intro-html"],
+  chapters:[
+  { title:"KPI Cards", desc:"Build the most common dashboard component, with a clear hierarchy and numbers that line up.",
+    lessons:[
+    {type:"video", title:"Anatomy of a KPI card", slides:[
+      {h:"Four parts", b:["Label: what the number is, in Title Case","Value: the number, biggest thing on the card","Comparison: change against a target or last period","Context: the period or filter it covers"]},
+      {h:"Hierarchy", b:["Make the value large and bold","Keep labels small and muted","Color only what carries meaning, like up or down"]},
+      {h:"Markup", b:["A container with a class, and a child for each part","Classes describe the role, not the look"], code:"<div class=\"kpi\">\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta\">+12% vs Last Year</div>\n</div>"}
+    ]},
+    {type:"code", title:"Build a KPI card", xp:100,
+      context:"Start with structure. Styling comes next.",
+      instr:["Inside the `.kpi` div, add a `div` with class `label` and the text `Total Fees`.","Add a `div` with class `value` and the text `$4.2M`.","Add a `div` with class `delta` and the text `+12% vs Last Year`."],
+      hint:"`<div class=\"label\">Total Fees</div>` and so on, in that order.",
+      starter:"<div class=\"kpi\">\n  <!-- Label, value and delta -->\n\n</div>\n",
+      solution:"<div class=\"kpi\">\n  <!-- Label, value and delta -->\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta\">+12% vs Last Year</div>\n</div>\n",
+      check:(h)=>{
+        h.need(h.q(".kpi"), "Keep the `.kpi` container.");
+        h.need(h.text(".kpi .label") === "Total Fees", "Add `<div class=\"label\">Total Fees</div>` inside `.kpi`.");
+        h.need(h.text(".kpi .value") === "$4.2M", "Add `<div class=\"value\">$4.2M</div>` inside `.kpi`.");
+        h.need(h.text(".kpi .delta") === "+12% vs Last Year", "Add `<div class=\"delta\">+12% vs Last Year</div>` inside `.kpi`.");
+        const kids = [...h.q(".kpi").children].map(e => e.className);
+        h.need(kids.join(" ") === "label value delta", "Put the label first, then the value, then the delta.");
+      }},
+    {type:"code", title:"Style the card", xp:100,
+      context:"A light border and generous padding make a card feel like a unit. Size and weight create the hierarchy between label and value.",
+      instr:["Give `.kpi` a `padding` of `20px`, a `border` of `1px solid #e5e7eb` and a `border-radius` of `12px`.","Give `.label` a `color` of `#64748b` and a `font-size` of `13px`.","Give `.value` a `font-size` of `36px` and a `font-weight` of `700`."],
+      hint:"Three rules: `.kpi { ... }`, `.label { ... }`, `.value { ... }`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; }\n  /* Style .kpi, .label and .value */\n\n</style>\n\n<div class=\"kpi\">\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta\">+12% vs Last Year</div>\n</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; }\n  /* Style .kpi, .label and .value */\n  .kpi {\n    padding: 20px;\n    border: 1px solid #e5e7eb;\n    border-radius: 12px;\n  }\n  .label {\n    color: #64748b;\n    font-size: 13px;\n  }\n  .value {\n    font-size: 36px;\n    font-weight: 700;\n  }\n</style>\n\n<div class=\"kpi\">\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta\">+12% vs Last Year</div>\n</div>\n",
+      check:(h)=>{
+        h.need(h.css(".kpi","padding-top") === "20px" && h.css(".kpi","padding-left") === "20px", "Set `padding: 20px` on `.kpi`.");
+        h.need(h.css(".kpi","border-top-width") === "1px" && h.css(".kpi","border-top-color") === h.rgb("#e5e7eb"), "Set `border: 1px solid #e5e7eb` on `.kpi`.");
+        h.need(h.css(".kpi","border-top-left-radius") === "12px", "Set `border-radius: 12px` on `.kpi`.");
+        h.need(h.css(".label","color") === h.rgb("#64748b") && h.css(".label","font-size") === "13px", "Style `.label` with `color: #64748b` and `font-size: 13px`.");
+        h.need(h.css(".value","font-size") === "36px" && h.css(".value","font-weight") === "700", "Style `.value` with `font-size: 36px` and `font-weight: 700`.");
+      }},
+    {type:"code", title:"Numbers that line up", xp:100,
+      context:"In most fonts, digits have different widths, so a `1` is narrower than an `8`. On a dashboard that makes numbers jitter when filters change, and columns of figures stop lining up. `font-variant-numeric: tabular-nums` gives every digit the same width.",
+      instr:["Add `font-variant-numeric: tabular-nums` to the `.value` rule."],
+      hint:"Add the declaration inside `.value { }`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; }\n  .value {\n    font-size: 36px;\n    font-weight: 700;\n  }\n</style>\n\n<div class=\"value\">$1,111,111</div>\n<div class=\"value\">$8,888,888</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; }\n  .value {\n    font-size: 36px;\n    font-weight: 700;\n    font-variant-numeric: tabular-nums;\n  }\n</style>\n\n<div class=\"value\">$1,111,111</div>\n<div class=\"value\">$8,888,888</div>\n",
+      check:(h)=>{
+        h.need(h.css(".value","font-variant-numeric") === "tabular-nums", "Add `font-variant-numeric: tabular-nums` to `.value`.");
+      }},
+    {type:"code", title:"Up and down", xp:100,
+      context:"Color the comparison so people can read direction at a glance. Combine classes: `class=\"delta up\"` gets the styles of both `.delta` and `.up`.",
+      instr:["Add a rule `.delta.up` with `color: #16a34a`.","Add a rule `.delta.down` with `color: #dc2626`.","Add the class `up` to the first card's delta, and `down` to the second card's delta."],
+      hint:"In HTML: `<div class=\"delta up\">`. In CSS: `.delta.up { color: #16a34a; }`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; }\n  .delta { font-size: 13px; font-weight: 600; }\n  /* Add .delta.up and .delta.down */\n\n</style>\n\n<div class=\"kpi\">\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta\">+12% vs Last Year</div>\n</div>\n<div class=\"kpi\">\n  <div class=\"label\">Utilization</div>\n  <div class=\"value\">78%</div>\n  <div class=\"delta\">-3 pts vs Target</div>\n</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; }\n  .delta { font-size: 13px; font-weight: 600; }\n  /* Add .delta.up and .delta.down */\n  .delta.up { color: #16a34a; }\n  .delta.down { color: #dc2626; }\n</style>\n\n<div class=\"kpi\">\n  <div class=\"label\">Total Fees</div>\n  <div class=\"value\">$4.2M</div>\n  <div class=\"delta up\">+12% vs Last Year</div>\n</div>\n<div class=\"kpi\">\n  <div class=\"label\">Utilization</div>\n  <div class=\"value\">78%</div>\n  <div class=\"delta down\">-3 pts vs Target</div>\n</div>\n",
+      check:(h)=>{
+        const d = h.qa(".delta");
+        h.need(d.length === 2, "Keep both cards.");
+        h.need(d[0].classList.contains("up") && !d[0].classList.contains("down"), "Add the class `up` to the first delta.");
+        h.need(d[1].classList.contains("down") && !d[1].classList.contains("up"), "Add the class `down` to the second delta.");
+        h.need(h.css(d[0],"color") === h.rgb("#16a34a"), "Set `.delta.up { color: #16a34a; }`.");
+        h.need(h.css(d[1],"color") === h.rgb("#dc2626"), "Set `.delta.down { color: #dc2626; }`.");
+      }},
+    {type:"mcq", title:"Why tabular numbers?",
+      context:"Small typographic choices make a dashboard feel solid.",
+      q:"What problem does `font-variant-numeric: tabular-nums` solve?",
+      options:["It makes numbers bolder","It gives every digit the same width, so figures align and don't jump","It adds thousands separators","It converts numbers to Title Case"], answer:1,
+      fb:["Weight is set with font-weight.","Correct! Equal-width digits keep columns aligned and values steady when they update.","Separators come from your formatting, like FORMAT in DAX.","Numbers don't have case."]}
+  ]},
+  { title:"Dashboard Layout", desc:"Arrange cards and charts with CSS grid, make components span columns, and theme everything with CSS variables.",
+    lessons:[
+    {type:"video", title:"CSS grid", slides:[
+      {h:"Grid layout", b:["display: grid on a container","grid-template-columns defines the columns","gap sets spacing between cells"], code:".kpis {\n  display: grid;\n  grid-template-columns: repeat(4, 1fr);\n  gap: 16px;\n}"},
+      {h:"The fr unit", b:["One fraction of the free space","repeat(4, 1fr) gives four equal columns","2fr 1fr gives a two-to-one split"]},
+      {h:"Spanning", b:["grid-column: span 2 makes an item two columns wide","Great for a wide chart next to narrow cards"], code:".wide { grid-column: span 2; }"},
+      {h:"Theming with variables", b:["Define colors once with custom properties","Reuse them with var()","Change the theme in one place"], code:":root { --accent: #2457f5; }\n.value { color: var(--accent); }"}
+    ]},
+    {type:"code", title:"A row of KPIs", xp:100,
+      context:"Four KPI cards should sit side by side in equal columns.",
+      instr:["Make `.kpis` a grid with `display: grid`.","Give it four equal columns with `grid-template-columns: repeat(4, 1fr)`.","Set `gap` to `16px`."],
+      hint:"All three declarations go in the `.kpis` rule.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .kpis {\n    /* Make this a 4-column grid */\n\n  }\n  .kpi { padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; }\n  .label { color: #64748b; font-size: 13px; }\n  .value { font-size: 28px; font-weight: 700; }\n</style>\n\n<div class=\"kpis\">\n  <div class=\"kpi\"><div class=\"label\">Total Fees</div><div class=\"value\">$4.2M</div></div>\n  <div class=\"kpi\"><div class=\"label\">Active Projects</div><div class=\"value\">14</div></div>\n  <div class=\"kpi\"><div class=\"label\">Utilization</div><div class=\"value\">78%</div></div>\n  <div class=\"kpi\"><div class=\"label\">Gross Area</div><div class=\"value\">1.8M SF</div></div>\n</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .kpis {\n    /* Make this a 4-column grid */\n    display: grid;\n    grid-template-columns: repeat(4, 1fr);\n    gap: 16px;\n  }\n  .kpi { padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; }\n  .label { color: #64748b; font-size: 13px; }\n  .value { font-size: 28px; font-weight: 700; }\n</style>\n\n<div class=\"kpis\">\n  <div class=\"kpi\"><div class=\"label\">Total Fees</div><div class=\"value\">$4.2M</div></div>\n  <div class=\"kpi\"><div class=\"label\">Active Projects</div><div class=\"value\">14</div></div>\n  <div class=\"kpi\"><div class=\"label\">Utilization</div><div class=\"value\">78%</div></div>\n  <div class=\"kpi\"><div class=\"label\">Gross Area</div><div class=\"value\">1.8M SF</div></div>\n</div>\n",
+      check:(h)=>{
+        h.need(h.css(".kpis","display") === "grid", "Set `display: grid` on `.kpis`.");
+        const cols = h.css(".kpis","grid-template-columns").trim().split(/\s+/);
+        h.need(cols.length === 4, "Use `grid-template-columns: repeat(4, 1fr)` for four columns.");
+        h.need(new Set(cols).size === 1, "Make the four columns equal with `1fr` each.");
+        h.need(h.css(".kpis","column-gap") === "16px", "Set `gap: 16px` on `.kpis`.");
+      }},
+    {type:"code", title:"Spanning columns", xp:100,
+      context:"Dashboards mix narrow cards and wide charts. In this three-column grid, the trend chart should take two columns and the card one.",
+      instr:["Add a `.wide` rule with `grid-column: span 2`.","Add the class `wide` to the chart div (the one labeled `Fees Trend`)."],
+      hint:"`<div class=\"cell wide\">` and `.wide { grid-column: span 2; }`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }\n  .cell { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; min-height: 120px; }\n  /* Add a .wide rule */\n\n</style>\n\n<div class=\"grid\">\n  <div class=\"cell\">Fees Trend</div>\n  <div class=\"cell\">Top Clients</div>\n</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }\n  .cell { border: 1px solid #e5e7eb; border-radius: 10px; padding: 16px; min-height: 120px; }\n  /* Add a .wide rule */\n  .wide { grid-column: span 2; }\n</style>\n\n<div class=\"grid\">\n  <div class=\"cell wide\">Fees Trend</div>\n  <div class=\"cell\">Top Clients</div>\n</div>\n",
+      check:(h)=>{
+        const c = h.qa(".cell");
+        h.need(c.length === 2 && c[0].classList.contains("wide"), "Add the class `wide` to the `Fees Trend` cell.");
+        h.need(!c[1].classList.contains("wide"), "Only the chart cell should be wide.");
+        h.need(c[0].getBoundingClientRect().width > c[1].getBoundingClientRect().width * 1.8, "Add `.wide { grid-column: span 2; }`.");
+      }},
+    {type:"code", title:"Theme with CSS variables", xp:100,
+      context:"Hard-coded colors scattered across rules are hard to change. Define them once on `:root` and reuse them. When a client wants their brand color, you change one line.",
+      instr:["On `:root`, define `--accent: #2457f5` and `--muted: #64748b`.","Use `var(--accent)` for the `.value` color and `var(--muted)` for the `.label` color."],
+      hint:"`:root { --accent: #2457f5; --muted: #64748b; }` then `color: var(--accent);`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  /* Define variables on :root */\n\n  .label { font-size: 13px; }\n  .value { font-size: 32px; font-weight: 700; }\n</style>\n\n<div class=\"label\">Total Fees</div>\n<div class=\"value\">$4.2M</div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  /* Define variables on :root */\n  :root {\n    --accent: #2457f5;\n    --muted: #64748b;\n  }\n  .label { font-size: 13px; color: var(--muted); }\n  .value { font-size: 32px; font-weight: 700; color: var(--accent); }\n</style>\n\n<div class=\"label\">Total Fees</div>\n<div class=\"value\">$4.2M</div>\n",
+      check:(h,doc,code)=>{
+        const root = doc.defaultView.getComputedStyle(doc.documentElement);
+        h.need(root.getPropertyValue("--accent").trim().toLowerCase() === "#2457f5", "Define `--accent: #2457f5` on `:root`.");
+        h.need(root.getPropertyValue("--muted").trim().toLowerCase() === "#64748b", "Define `--muted: #64748b` on `:root`.");
+        h.need(/var\(\s*--accent\s*\)/.test(code) && h.css(".value","color") === h.rgb("#2457f5"), "Use `color: var(--accent)` on `.value`.");
+        h.need(/var\(\s*--muted\s*\)/.test(code) && h.css(".label","color") === h.rgb("#64748b"), "Use `color: var(--muted)` on `.label`.");
+      }},
+    {type:"mcq", title:"The fr unit",
+      context:"fr is the unit you'll use most in dashboard grids.",
+      q:"What does `grid-template-columns: 2fr 1fr` produce?",
+      options:["Two columns of 2px and 1px","Two columns, the first twice as wide as the second","Three equal columns","One column with two rows"], answer:1,
+      fb:["fr is a fraction of free space, not pixels.","Correct! The free space is split into three parts: two for the first column, one for the second.","That would be repeat(3, 1fr).","Columns, not rows."]}
+  ]},
+  { title:"Charts Without a Library", desc:"Draw progress bars, bar charts and sparklines with plain HTML and SVG, scaling data values to pixels yourself.",
+    lessons:[
+    {type:"video", title:"Scaling data to pixels", slides:[
+      {h:"Bars with divs", b:["A track div and a fill div inside it","The fill's width is the value as a percent of the maximum"], code:"<div class=\"track\"><div class=\"fill\" style=\"width: 72%\"></div></div>"},
+      {h:"SVG basics", b:["viewBox sets the coordinate system: \"0 0 300 120\"","x grows to the right, y grows downward","rect, line, polyline, circle and text are shapes you place by coordinates"]},
+      {h:"Bars that stand up", b:["Because y grows downward, a bar of height h on a chart of height H starts at y = H - h"], code:"<svg viewBox=\"0 0 300 120\">\n  <rect x=\"20\" y=\"20\" width=\"60\" height=\"100\" />\n</svg>"},
+      {h:"Sparklines", b:["A polyline through x,y points","No axes, just the shape of the trend"], code:"<polyline points=\"0,40 50,25 100,30\" fill=\"none\" stroke=\"#2457f5\" />"}
+    ]},
+    {type:"code", title:"Progress bar", xp:100,
+      context:"Utilization is 72% of target. A track with a filled portion shows it at a glance, and works great inside table rows.",
+      instr:["Give `.track` a `height` of `8px` and a `background` of `#eef0f3`.","Give `.fill` a `height` of `100%` and a `background` of `#2457f5`.","Set the fill's width to `72%` with an inline `style` attribute."],
+      hint:"`<div class=\"fill\" style=\"width: 72%\"></div>`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .track {\n    border-radius: 99px;\n    overflow: hidden;\n    /* height and background */\n\n  }\n  .fill {\n    /* height and background */\n\n  }\n</style>\n\n<div class=\"label\">Utilization</div>\n<div class=\"track\"><div class=\"fill\"></div></div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .track {\n    border-radius: 99px;\n    overflow: hidden;\n    /* height and background */\n    height: 8px;\n    background: #eef0f3;\n  }\n  .fill {\n    /* height and background */\n    height: 100%;\n    background: #2457f5;\n  }\n</style>\n\n<div class=\"label\">Utilization</div>\n<div class=\"track\"><div class=\"fill\" style=\"width: 72%\"></div></div>\n",
+      check:(h)=>{
+        h.need(h.css(".track","height") === "8px" && h.css(".track","background-color") === h.rgb("#eef0f3"), "Give `.track` `height: 8px` and `background: #eef0f3`.");
+        h.need(h.css(".fill","background-color") === h.rgb("#2457f5"), "Give `.fill` `background: #2457f5`.");
+        h.need(h.css(".fill","height") === "8px", "Give `.fill` `height: 100%`.");
+        const r = h.q(".fill").getBoundingClientRect().width / h.q(".track").getBoundingClientRect().width;
+        h.need(Math.abs(r - 0.72) < 0.01, "Set the fill's width to `72%` with `style=\"width: 72%\"`.");
+      }},
+    {type:"code", title:"Bar chart with divs", xp:100,
+      context:"Fees by office: New York $50K, London $30K, Tokyo $20K. Scale each bar against the largest value, so New York is 100%.",
+      instr:["Set the width of each `.bar` with an inline style: New York `100%`, London `60%`, Tokyo `40%`."],
+      hint:"London is 30 / 50 = 60% of New York.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 12px; margin-bottom: 8px; }\n  .bar { height: 18px; background: #2457f5; border-radius: 4px; }\n</style>\n\n<div class=\"row\"><span>New York</span><div class=\"bar\"></div></div>\n<div class=\"row\"><span>London</span><div class=\"bar\"></div></div>\n<div class=\"row\"><span>Tokyo</span><div class=\"bar\"></div></div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .row { display: grid; grid-template-columns: 110px 1fr; align-items: center; gap: 12px; margin-bottom: 8px; }\n  .bar { height: 18px; background: #2457f5; border-radius: 4px; }\n</style>\n\n<div class=\"row\"><span>New York</span><div class=\"bar\" style=\"width: 100%\"></div></div>\n<div class=\"row\"><span>London</span><div class=\"bar\" style=\"width: 60%\"></div></div>\n<div class=\"row\"><span>Tokyo</span><div class=\"bar\" style=\"width: 40%\"></div></div>\n",
+      check:(h)=>{
+        const b = h.qa(".bar").map(e => e.style.width.replace(/\s/g, ""));
+        h.need(b.length === 3, "Keep all three rows.");
+        h.need(b[0] === "100%", "New York is the largest value, so its bar is `width: 100%`.");
+        h.need(b[1] === "60%", "London is 30 out of 50, so `width: 60%`.");
+        h.need(b[2] === "40%", "Tokyo is 20 out of 50, so `width: 40%`.");
+      }},
+    {type:"code", title:"SVG bar chart", xp:100,
+      context:"The chart is 120 units tall. Values are 100, 60 and 40, already in chart units. Because y grows downward, each bar's `y` is `120 - height` so all bars sit on the bottom edge.",
+      instr:["The first bar is done for you.","Add a second `rect` at `x=\"110\"` with `width=\"60\"`, `height=\"60\"` and the right `y`.","Add a third `rect` at `x=\"200\"` with `width=\"60\"`, `height=\"40\"` and the right `y`."],
+      hint:"The second bar's `y` is `120 - 60 = 60`; the third's is `80`.",
+      starter:"<svg viewBox=\"0 0 300 120\" width=\"300\" height=\"120\">\n  <rect x=\"20\" y=\"20\" width=\"60\" height=\"100\" fill=\"#2457f5\" />\n  <!-- Add two more bars -->\n\n</svg>\n",
+      solution:"<svg viewBox=\"0 0 300 120\" width=\"300\" height=\"120\">\n  <rect x=\"20\" y=\"20\" width=\"60\" height=\"100\" fill=\"#2457f5\" />\n  <!-- Add two more bars -->\n  <rect x=\"110\" y=\"60\" width=\"60\" height=\"60\" fill=\"#2457f5\" />\n  <rect x=\"200\" y=\"80\" width=\"60\" height=\"40\" fill=\"#2457f5\" />\n</svg>\n",
+      check:(h)=>{
+        const r = h.qa("svg rect").map(e => ({ x: +e.getAttribute("x"), y: +e.getAttribute("y"), w: +e.getAttribute("width"), h: +e.getAttribute("height") }));
+        h.need(r.length === 3, "The chart should have three `rect` elements.");
+        h.need(r[1].x === 110 && r[1].w === 60 && r[1].h === 60, "The second bar needs `x=\"110\"`, `width=\"60\"` and `height=\"60\"`.");
+        h.need(r[2].x === 200 && r[2].w === 60 && r[2].h === 40, "The third bar needs `x=\"200\"`, `width=\"60\"` and `height=\"40\"`.");
+        h.need(r.every(b => b.y + b.h === 120), "Each bar's `y` should be `120 - height`, so it sits on the bottom.");
+      }},
+    {type:"code", title:"Sparkline", xp:100,
+      context:"A sparkline shows the shape of a trend in a tiny space, often right inside a KPI card. Monthly fees, scaled to a chart 200 wide and 50 tall, give these points: `0,40 50,25 100,30 150,10 200,15`.",
+      instr:["Add a `polyline` with exactly those `points`.","Set `fill=\"none\"`, `stroke=\"#2457f5\"` and `stroke-width=\"2\"`."],
+      hint:"`<polyline points=\"0,40 50,25 100,30 150,10 200,15\" fill=\"none\" stroke=\"#2457f5\" stroke-width=\"2\" />`",
+      starter:"<div style=\"font-family: system-ui, sans-serif; color: #64748b; font-size: 13px\">Fees Trend</div>\n<svg viewBox=\"0 0 200 50\" width=\"200\" height=\"50\">\n  <!-- Add the sparkline -->\n\n</svg>\n",
+      solution:"<div style=\"font-family: system-ui, sans-serif; color: #64748b; font-size: 13px\">Fees Trend</div>\n<svg viewBox=\"0 0 200 50\" width=\"200\" height=\"50\">\n  <!-- Add the sparkline -->\n  <polyline points=\"0,40 50,25 100,30 150,10 200,15\" fill=\"none\" stroke=\"#2457f5\" stroke-width=\"2\" />\n</svg>\n",
+      check:(h)=>{
+        const p = h.q("svg polyline");
+        h.need(p, "Add a `polyline` inside the `svg`.");
+        h.need((p.getAttribute("points") || "").trim().split(/\s+/).join(" ") === "0,40 50,25 100,30 150,10 200,15", "Use the points `0,40 50,25 100,30 150,10 200,15`.");
+        h.need(p.getAttribute("fill") === "none", "Set `fill=\"none\"` so the area under the line isn't filled.");
+        h.need((p.getAttribute("stroke") || "").toLowerCase() === "#2457f5" && p.getAttribute("stroke-width") === "2", "Set `stroke=\"#2457f5\"` and `stroke-width=\"2\"`.");
+      }},
+    {type:"mcq", title:"SVG coordinates",
+      context:"The SVG coordinate system trips up almost everyone once.",
+      q:"In an SVG with `viewBox=\"0 0 300 120\"`, where is the point (0, 0)?",
+      options:["Bottom left","Top left","Center","Bottom right"], answer:1,
+      fb:["That's the math convention, but SVG's y axis points down.","Correct! The origin is the top left, and y grows downward.","The viewBox starts at its min-x and min-y, here 0 and 0.","Not in SVG."]}
+  ]},
+  { title:"HTML in Power BI", desc:"Learn how the HTML Content visual turns DAX measures into HTML, and write markup that's safe to put inside a DAX string.",
+    lessons:[
+    {type:"video", title:"How HTML Content visuals work", slides:[
+      {h:"A measure that returns HTML", b:["The HTML Content custom visual renders text as HTML","You write a DAX measure that builds an HTML string","Slicers and filters recalculate the measure, so the HTML updates"]},
+      {h:"What it can't do", b:["Scripts don't run, so no JavaScript","Clicking inside it doesn't cross-filter other visuals","Use it for cards, text, tables and static charts"]},
+      {h:"Building the string", b:["Concatenate text with &","Format numbers with FORMAT()","Keep the HTML in a variable to stay readable"], code:"KPI Card =\nVAR fees = FORMAT ( [Total Fees], \"$#,0\" )\nRETURN\n\"<div class='kpi'><div class='label'>Total Fees</div>\" &\n\"<div class='value'>\" & fees & \"</div></div>\""}
+    ]},
+    {type:"video", title:"Quotes and conditions", slides:[
+      {h:"The quote problem", b:["DAX strings are wrapped in double quotes","A double quote inside the string must be doubled: \"\"","Easier: use single quotes in your HTML attributes"], code:"-- Hard to read\n\"<div class=\"\"kpi\"\">\"\n-- Easy to read\n\"<div class='kpi'>\""},
+      {h:"Conditional classes", b:["Pick a class with IF or SWITCH","Keep colors in CSS, not in DAX"], code:"VAR cls = IF ( [Fees vs PY %] >= 0, \"up\", \"down\" )\nRETURN \"<div class='delta \" & cls & \"'>...</div>\""},
+      {h:"Design first", b:["Design the card in Figma","Build it in plain HTML and CSS, like in this course","Then move it into the measure piece by piece"]}
+    ]},
+    {type:"code", title:"Measure-safe HTML", xp:100,
+      context:"This card works, but every attribute uses double quotes, so it would need lots of escaping inside a DAX string. HTML accepts single quotes for attribute values just as well.",
+      instr:["Rewrite every attribute value in the code to use single quotes instead of double quotes, so the code contains no double quote characters.","Keep the card working: the styles and text should stay the same."],
+      hint:"Change `class=\"kpi\"` to `class='kpi'`, and the same for every other attribute.",
+      starter:"<div class=\"kpi\" style=\"padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-family: system-ui\">\n  <div class=\"label\" style=\"color: #64748b; font-size: 13px\">Total Fees</div>\n  <div class=\"value\" style=\"font-size: 32px; font-weight: 700\">$4.2M</div>\n</div>\n",
+      solution:"<div class='kpi' style='padding: 16px; border: 1px solid #e5e7eb; border-radius: 10px; font-family: system-ui'>\n  <div class='label' style='color: #64748b; font-size: 13px'>Total Fees</div>\n  <div class='value' style='font-size: 32px; font-weight: 700'>$4.2M</div>\n</div>\n",
+      check:(h,doc,code)=>{
+        h.need(!code.includes('"'), "There are still double quotes in your code. Replace them all with single quotes.");
+        h.need(h.text(".kpi .label") === "Total Fees" && h.text(".kpi .value") === "$4.2M", "Keep the label and value text the same.");
+        h.need(h.css(".kpi","padding-top") === "16px" && h.css(".value","font-size") === "32px" && h.css(".label","color") === h.rgb("#64748b"), "Keep the inline styles the same.");
+      }},
+    {type:"code", title:"Conditional classes", xp:100,
+      context:"In a measure you'd pick the class with `IF ( [Change] >= 0, \"up\", \"down\" )`. Here, apply that rule by hand to three office rows: New York `+8%`, London `-3%`, Tokyo `0%`. Zero counts as up.",
+      instr:["Add the class `up` or `down` to each `.delta` span based on its value, following the rule above."],
+      hint:"`+8%` and `0%` get `up`; `-3%` gets `down`.",
+      starter:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .row { display: flex; justify-content: space-between; width: 240px; padding: 6px 0; border-bottom: 1px solid #eef0f3; }\n  .up { color: #16a34a; }\n  .down { color: #dc2626; }\n</style>\n\n<div class='row'><span>New York</span><span class='delta'>+8%</span></div>\n<div class='row'><span>London</span><span class='delta'>-3%</span></div>\n<div class='row'><span>Tokyo</span><span class='delta'>0%</span></div>\n",
+      solution:"<style>\n  body { font-family: system-ui, sans-serif; margin: 24px; }\n  .row { display: flex; justify-content: space-between; width: 240px; padding: 6px 0; border-bottom: 1px solid #eef0f3; }\n  .up { color: #16a34a; }\n  .down { color: #dc2626; }\n</style>\n\n<div class='row'><span>New York</span><span class='delta up'>+8%</span></div>\n<div class='row'><span>London</span><span class='delta down'>-3%</span></div>\n<div class='row'><span>Tokyo</span><span class='delta up'>0%</span></div>\n",
+      check:(h)=>{
+        const d = h.qa(".delta").map(e => (e.classList.contains("up") ? "up" : "") + (e.classList.contains("down") ? "down" : ""));
+        h.need(d.length === 3, "Keep all three rows.");
+        h.need(d.every(x => x === "up" || x === "down"), "Give every `.delta` exactly one of `up` or `down`.");
+        h.need(d.join(" ") === "up down up", "Check the rule: values of 0 or more are `up`, negatives are `down`.");
+      }},
+    {type:"mcq", title:"Single quotes in measures",
+      context:"This small habit saves a lot of escaping.",
+      q:"Why use single quotes for HTML attributes inside a DAX measure?",
+      options:["HTML requires single quotes","DAX strings are wrapped in double quotes, so double quotes inside would need escaping","Single quotes render faster","Power BI strips double quotes"], answer:1,
+      fb:["HTML accepts both.","Correct! Single quotes avoid having to write every inner double quote as two.","There's no rendering difference.","It doesn't strip them, but they need escaping in DAX."]},
+    {type:"mcq", title:"Interactivity",
+      context:"Knowing a visual's limits helps you choose the right one.",
+      q:"Someone clicks a bar drawn with SVG inside an HTML Content visual. What happens to the other visuals on the page?",
+      options:["They filter to that bar's category","Nothing: the HTML visual doesn't send selections to other visuals","They highlight the matching data","The page refreshes"], answer:1,
+      fb:["That needs a visual that supports selection, like a native chart or Deneb.","Correct! HTML Content visuals respond to filters but don't create them.","Cross-highlighting needs selection support too.","Nothing reloads."]}
+  ]}
+  ],
+  practice:[
+    {q:"Which CSS gives four equal columns?", options:["columns: 4","grid-template-columns: repeat(4, 1fr)","display: four","flex: 4"], answer:1},
+    {q:"How do you write a double quote inside a DAX string?", options:["\\\"","''","\"\"","&quot; only"], answer:2},
+    {q:"In SVG, a bar of height 30 on a 100-tall chart should start at y =", options:["30","0","70","100"], answer:2},
+    {q:"Which element draws a sparkline through several points?", options:["rect","polyline","circle","path only"], answer:1},
+    {q:"Where do you define CSS variables for the whole page?", options:["body","html or :root","head","style"], answer:1}
+  ]
+});
+TRACKS.push({id:"bi-developer", title:"Power BI and Fabric Developer", desc:"Model data, write DAX, build lakehouse pipelines and design custom HTML visuals for dashboards.", courses:["intro-sql","pbi-modeling","dax","fabric","html-dashboards"]});
+TRACKS.find(t => t.id === "web-foundations").courses.push("html-dashboards");
+
 /* ===== Icons ===== */
 const sv = (p, w) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w||2}" stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
 const I = {
@@ -1500,9 +2238,10 @@ function counts(c) {
   const f = flat(c);
   return { videos: f.filter(x => x.l.type === "video").length, ex: f.filter(x => x.l.type !== "video").length };
 }
-function techTag(c) { return `<span class="tag ${c.tech === "SQL" ? "sql" : c.tech === "HTML" ? "html" : "py"}">${c.tech}</span>`; }
+const TECH_CLASS = { SQL: "sql", HTML: "html", "Power BI": "pbi", Fabric: "fab" };
+function techTag(c) { return `<span class="tag ${TECH_CLASS[c.tech] || "py"}">${c.tech}</span>`; }
 const langOf = c => c.lang === "sql" ? "sql" : c.lang === "html" ? "html" : "py";
-const techColor = c => c.tech === "SQL" ? ["#fff4ed", "var(--sql)"] : c.tech === "HTML" ? ["#ecfdf5", "var(--html)"] : ["#eef3ff", "var(--py)"];
+const techColor = c => ({ SQL: ["#fff4ed", "var(--sql)"], HTML: ["#ecfdf5", "var(--html)"], "Power BI": ["#fefce8", "var(--pbi)"], Fabric: ["#ecfeff", "var(--fab)"] })[c.tech] || ["#eef3ff", "var(--py)"];
 
 /* ===== Syntax highlighting ===== */
 const PYRE = /(#.*)|("""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?)|(\b\d+(?:\.\d+)?\b)|(\b(?:False|None|True|and|as|assert|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b)|(\b[A-Za-z_]\w*(?=\())/g;
@@ -1588,7 +2327,7 @@ async function ensurePy(pkgs) {
         await loadScript(PYODIDE_URL + "pyodide.js");
         const p = await loadPyodide({ indexURL: PYODIDE_URL });
         p.runPython(HARNESS);
-        p.globals.set("SEED_SQL", SEED_SQL);
+        p.globals.set("SEED_SQL", SEED_SQL + "\n" + PORTFOLIO.sql);
         py = p;
       })();
       pyBoot.catch(() => { pyBoot = null; setRT("error"); });
@@ -1643,7 +2382,7 @@ function IDE(host, o) {
                  <div class="cin"><span>In [<b class="cnt">1</b>]:</span><input aria-label="Shell input" spellcheck="false" autocapitalize="off"></div>`}
       </div>
       <div class="pane p1 hidden" style="flex:1;min-height:0;overflow:auto">
-        ${html ? "" : sql ? `<div class="schema">${SQL_SCHEMA.map(t => `<b>${t.table}</b><table>${t.cols.map(c => `<tr><td>${c[0]}</td><td>${c[1]}</td></tr>`).join("")}</table>`).join("")}<p class="muted" style="margin-top:12px">${FILMS.length} rows. Try <code>SELECT * FROM films LIMIT 5;</code></p></div>`
+        ${html ? "" : sql ? `<div class="schema">${(o.schema || SQL_SCHEMA).map(t => `<b>${t.table}</b><table>${t.cols.map(c => `<tr><td>${c[0]}</td><td>${c[1]}</td></tr>`).join("")}</table><div style="height:14px"></div>`).join("")}<p class="muted">Try <code>SELECT * FROM ${(o.schema || SQL_SCHEMA)[0].table} LIMIT 5;</code></p></div>`
               : `<div class="plots"><span class="note muted">Plots you create will appear here.</span></div>`}
       </div>
     </div>`;
@@ -1683,8 +2422,8 @@ function IDE(host, o) {
       await tick();
       let res;
       if (sql) {
-        py.globals.set("_a", code); py.globals.set("_m", mode); py.globals.set("_s", o.solution || "");
-        res = JSON.parse(py.runPython(`run_sql(_a, _m, _s, ${o.workspace ? "True" : "False"})`));
+        py.globals.set("_a", code); py.globals.set("_m", mode); py.globals.set("_s", o.solution || ""); py.globals.set("_seed", o.seed || "");
+        res = JSON.parse(py.runPython(`run_sql(_a, _m, _s, ${o.workspace ? "True" : "False"}, _seed or None)`));
         renderSQL(res);
       } else {
         py.globals.set("_a", code); py.globals.set("_p", o.pre || ""); py.globals.set("_m", mode);
@@ -1818,7 +2557,7 @@ function pageHome() {
       <div class="card">
         <div class="ex-h">${last ? "Continue learning" : "Start learning"}</div>
         <div class="cont" style="margin-top:14px">
-          <div class="ic" style="background:${techColor(lc)[0]};color:${techColor(lc)[1]}">${lc.tech === "SQL" ? I.db : I.code}</div>
+          <div class="ic" style="background:${techColor(lc)[0]};color:${techColor(lc)[1]}">${lc.lang === "sql" ? I.db : I.code}</div>
           <div style="flex:1;min-width:0">
             <h3 style="font-size:18px">${esc(lc.title)}</h3>
             <div class="muted" style="font-size:13.5px;margin-top:2px">Chapter ${nx.ci + 1}: ${esc(lc.chapters[nx.ci].title)} · ${esc(nx.l.title)}</div>
@@ -1856,7 +2595,7 @@ function pageCourses() {
     <h1 class="h1">Courses</h1><div class="sub">Interactive courses with real code that runs in your browser.</div>
     <div class="filters">
       <input class="search" placeholder="Search courses" value="${esc(F.q)}" aria-label="Search courses">
-      ${["All", "Python", "SQL", "HTML"].map(t => `<button class="chip ${F.tech === t ? "on" : ""}" data-t="${t}">${t === "All" ? "All technologies" : t}</button>`).join("")}
+      ${["All", ...new Set(COURSES.map(c => c.tech))].map(t => `<button class="chip ${F.tech === t ? "on" : ""}" data-t="${t}">${t === "All" ? "All technologies" : t}</button>`).join("")}
       ${["All", "Beginner", "Intermediate"].map(t => `<button class="chip ${F.level === t ? "on" : ""}" data-l="${t}">${t === "All" ? "All levels" : t}</button>`).join("")}
     </div>
     <div class="grid" id="cgrid"></div></div>`;
@@ -2009,7 +2748,7 @@ function pageWorkspace() {
   const k = "ws:" + WS.lang;
   IDE($("#wside"), {
     lang: WS.lang === "sql" ? "sql" : WS.lang === "html" ? "html" : "py", value: S.drafts[k] || WS_DEFAULT[WS.lang],
-    pkgs: WS.lang === "sql" ? ["sqlite3"] : [], workspace: true,
+    pkgs: WS.lang === "sql" ? ["sqlite3"] : [], workspace: true, schema: WS.lang === "sql" ? SQL_SCHEMA.concat(PORTFOLIO.schema, PORTFOLIO.bronzeSchema) : null,
     onChange: v => { S.drafts[k] = v; saveSoon(); },
     onReset: () => WS_DEFAULT[WS.lang]
   });
@@ -2160,7 +2899,7 @@ function renderCode() {
   const ide = IDE($("#ide"), {
     lang: langOf(c),
     value: S.drafts[L.key] || l.starter,
-    pkgs: c.pkgs, pre: c.pre || "", solution: l.solution, check: l.check || "",
+    pkgs: c.pkgs, pre: c.pre || "", solution: l.solution, check: l.check || "", seed: c.seed, schema: c.schema,
     onChange: v => { S.drafts[L.key] = v; saveSoon(); },
     onReset: () => l.starter,
     onSubmit: res => {

@@ -1,5 +1,5 @@
 import json
-css=open('style.css').read(); content=open('content.js').read()+'\n'+open('content_html.js').read(); app=open('app.js').read(); harness=open('harness.py').read()
+css=open('style.css').read(); content='\n'.join(open(f).read() for f in ['content.js','data_portfolio.js','content_html.js','content_bi.js','content_dash.js']); app=open('app.js').read(); harness=open('harness.py').read()
 logo='<svg width="28" height="28" viewBox="0 0 28 28"><rect width="28" height="28" rx="7" fill="#2457f5"/><rect x="7" y="15" width="3.2" height="6" rx="1.2" fill="#fff"/><rect x="12.4" y="10" width="3.2" height="11" rx="1.2" fill="#fff"/><rect x="17.8" y="6" width="3.2" height="15" rx="1.2" fill="#fff" opacity=".7"/></svg>'
 def ic(name): return '${I.%s}'%name
 nav=[('home','Home','home'),('courses','Courses','grid'),('tracks','Tracks','route'),('practice','Practice','target'),('workspace','Workspace','term')]

@@ -101,9 +101,10 @@ function counts(c) {
   const f = flat(c);
   return { videos: f.filter(x => x.l.type === "video").length, ex: f.filter(x => x.l.type !== "video").length };
 }
-function techTag(c) { return `<span class="tag ${c.tech === "SQL" ? "sql" : c.tech === "HTML" ? "html" : "py"}">${c.tech}</span>`; }
+const TECH_CLASS = { SQL: "sql", HTML: "html", "Power BI": "pbi", Fabric: "fab" };
+function techTag(c) { return `<span class="tag ${TECH_CLASS[c.tech] || "py"}">${c.tech}</span>`; }
 const langOf = c => c.lang === "sql" ? "sql" : c.lang === "html" ? "html" : "py";
-const techColor = c => c.tech === "SQL" ? ["#fff4ed", "var(--sql)"] : c.tech === "HTML" ? ["#ecfdf5", "var(--html)"] : ["#eef3ff", "var(--py)"];
+const techColor = c => ({ SQL: ["#fff4ed", "var(--sql)"], HTML: ["#ecfdf5", "var(--html)"], "Power BI": ["#fefce8", "var(--pbi)"], Fabric: ["#ecfeff", "var(--fab)"] })[c.tech] || ["#eef3ff", "var(--py)"];
 
 /* ===== Syntax highlighting ===== */
 const PYRE = /(#.*)|("""[\s\S]*?(?:"""|$)|'''[\s\S]*?(?:'''|$)|"(?:\\.|[^"\\\n])*"?|'(?:\\.|[^'\\\n])*'?)|(\b\d+(?:\.\d+)?\b)|(\b(?:False|None|True|and|as|assert|break|class|continue|def|del|elif|else|except|finally|for|from|global|if|import|in|is|lambda|nonlocal|not|or|pass|raise|return|try|while|with|yield)\b)|(\b[A-Za-z_]\w*(?=\())/g;
@@ -189,7 +190,7 @@ async function ensurePy(pkgs) {
         await loadScript(PYODIDE_URL + "pyodide.js");
         const p = await loadPyodide({ indexURL: PYODIDE_URL });
         p.runPython(HARNESS);
-        p.globals.set("SEED_SQL", SEED_SQL);
+        p.globals.set("SEED_SQL", SEED_SQL + "\n" + PORTFOLIO.sql);
         py = p;
       })();
       pyBoot.catch(() => { pyBoot = null; setRT("error"); });
@@ -244,7 +245,7 @@ function IDE(host, o) {
                  <div class="cin"><span>In [<b class="cnt">1</b>]:</span><input aria-label="Shell input" spellcheck="false" autocapitalize="off"></div>`}
       </div>
       <div class="pane p1 hidden" style="flex:1;min-height:0;overflow:auto">
-        ${html ? "" : sql ? `<div class="schema">${SQL_SCHEMA.map(t => `<b>${t.table}</b><table>${t.cols.map(c => `<tr><td>${c[0]}</td><td>${c[1]}</td></tr>`).join("")}</table>`).join("")}<p class="muted" style="margin-top:12px">${FILMS.length} rows. Try <code>SELECT * FROM films LIMIT 5;</code></p></div>`
+        ${html ? "" : sql ? `<div class="schema">${(o.schema || SQL_SCHEMA).map(t => `<b>${t.table}</b><table>${t.cols.map(c => `<tr><td>${c[0]}</td><td>${c[1]}</td></tr>`).join("")}</table><div style="height:14px"></div>`).join("")}<p class="muted">Try <code>SELECT * FROM ${(o.schema || SQL_SCHEMA)[0].table} LIMIT 5;</code></p></div>`
               : `<div class="plots"><span class="note muted">Plots you create will appear here.</span></div>`}
       </div>
     </div>`;
@@ -284,8 +285,8 @@ function IDE(host, o) {
       await tick();
       let res;
       if (sql) {
-        py.globals.set("_a", code); py.globals.set("_m", mode); py.globals.set("_s", o.solution || "");
-        res = JSON.parse(py.runPython(`run_sql(_a, _m, _s, ${o.workspace ? "True" : "False"})`));
+        py.globals.set("_a", code); py.globals.set("_m", mode); py.globals.set("_s", o.solution || ""); py.globals.set("_seed", o.seed || "");
+        res = JSON.parse(py.runPython(`run_sql(_a, _m, _s, ${o.workspace ? "True" : "False"}, _seed or None)`));
         renderSQL(res);
       } else {
         py.globals.set("_a", code); py.globals.set("_p", o.pre || ""); py.globals.set("_m", mode);
@@ -419,7 +420,7 @@ function pageHome() {
       <div class="card">
         <div class="ex-h">${last ? "Continue learning" : "Start learning"}</div>
         <div class="cont" style="margin-top:14px">
-          <div class="ic" style="background:${techColor(lc)[0]};color:${techColor(lc)[1]}">${lc.tech === "SQL" ? I.db : I.code}</div>
+          <div class="ic" style="background:${techColor(lc)[0]};color:${techColor(lc)[1]}">${lc.lang === "sql" ? I.db : I.code}</div>
           <div style="flex:1;min-width:0">
             <h3 style="font-size:18px">${esc(lc.title)}</h3>
             <div class="muted" style="font-size:13.5px;margin-top:2px">Chapter ${nx.ci + 1}: ${esc(lc.chapters[nx.ci].title)} · ${esc(nx.l.title)}</div>
@@ -457,7 +458,7 @@ function pageCourses() {
     <h1 class="h1">Courses</h1><div class="sub">Interactive courses with real code that runs in your browser.</div>
     <div class="filters">
       <input class="search" placeholder="Search courses" value="${esc(F.q)}" aria-label="Search courses">
-      ${["All", "Python", "SQL", "HTML"].map(t => `<button class="chip ${F.tech === t ? "on" : ""}" data-t="${t}">${t === "All" ? "All technologies" : t}</button>`).join("")}
+      ${["All", ...new Set(COURSES.map(c => c.tech))].map(t => `<button class="chip ${F.tech === t ? "on" : ""}" data-t="${t}">${t === "All" ? "All technologies" : t}</button>`).join("")}
       ${["All", "Beginner", "Intermediate"].map(t => `<button class="chip ${F.level === t ? "on" : ""}" data-l="${t}">${t === "All" ? "All levels" : t}</button>`).join("")}
     </div>
     <div class="grid" id="cgrid"></div></div>`;
@@ -610,7 +611,7 @@ function pageWorkspace() {
   const k = "ws:" + WS.lang;
   IDE($("#wside"), {
     lang: WS.lang === "sql" ? "sql" : WS.lang === "html" ? "html" : "py", value: S.drafts[k] || WS_DEFAULT[WS.lang],
-    pkgs: WS.lang === "sql" ? ["sqlite3"] : [], workspace: true,
+    pkgs: WS.lang === "sql" ? ["sqlite3"] : [], workspace: true, schema: WS.lang === "sql" ? SQL_SCHEMA.concat(PORTFOLIO.schema, PORTFOLIO.bronzeSchema) : null,
     onChange: v => { S.drafts[k] = v; saveSoon(); },
     onReset: () => WS_DEFAULT[WS.lang]
   });
@@ -761,7 +762,7 @@ function renderCode() {
   const ide = IDE($("#ide"), {
     lang: langOf(c),
     value: S.drafts[L.key] || l.starter,
-    pkgs: c.pkgs, pre: c.pre || "", solution: l.solution, check: l.check || "",
+    pkgs: c.pkgs, pre: c.pre || "", solution: l.solution, check: l.check || "", seed: c.seed, schema: c.schema,
     onChange: v => { S.drafts[L.key] = v; saveSoon(); },
     onReset: () => l.starter,
     onSubmit: res => {
